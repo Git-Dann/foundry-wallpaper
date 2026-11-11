@@ -74,6 +74,7 @@ body {
   padding: var(--safe-top) var(--safe-side) var(--safe-bottom);
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: clamp(32px, 5vw, 96px);
   align-items: center;
 }
@@ -90,10 +91,18 @@ body {
 }
 .centre-inner { width: 52%; }
 .eyebrow { font-family: var(--mono); font-size: clamp(10px, .8vw, 13px); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); }
-.time { font-family: var(--serif); font-size: clamp(64px, 11vh, 160px); line-height: .95; letter-spacing: -.01em; margin: .12em 0 .08em; }
-.time .colon { opacity: .5; animation: blink 2s steps(1) infinite; }
+.day { font-family: var(--serif); font-size: clamp(96px, 17vh, 240px); line-height: .82; letter-spacing: -.02em; margin-top: .1em;
+  background: linear-gradient(180deg, #fff 30%, rgba(190,205,255,.75)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.month { font-family: var(--serif); font-style: italic; font-size: clamp(22px, 3.4vh, 44px); color: var(--ink-2); margin-top: .1em; }
+.clocks { display: flex; justify-content: center; gap: clamp(18px, 2.4vw, 40px); margin-top: clamp(12px, 2vh, 22px); }
+.clk { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.clk .lbl { font-family: var(--mono); font-size: clamp(10px, .75vw, 12px); letter-spacing: .2em; color: var(--ink-3); display: flex; gap: 6px; align-items: center; }
+.clk .lbl i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.clk .val { font-family: var(--mono); font-weight: 500; font-size: clamp(24px, 3.6vh, 46px); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.clk.pk .val { color: var(--ink-2); }
+.clk .colon { opacity: .5; animation: blink 2s steps(1) infinite; }
+.clk .off { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--ink-4); }
 @keyframes blink { 50% { opacity: .15; } }
-.date { font-family: var(--serif); font-style: italic; font-size: clamp(18px, 2.4vh, 30px); color: var(--ink-2); }
 .next { margin-top: clamp(18px, 3vh, 36px); padding-top: clamp(14px, 2vh, 24px); border-top: 1px solid var(--line); }
 .next-title { font-size: clamp(15px, 1.9vh, 22px); font-weight: 500; margin-top: 8px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .next-meta { margin-top: 10px; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
@@ -109,7 +118,7 @@ body {
 .arc { transition: opacity .6s; }
 
 /* ---------- side instruments ---------- */
-.side { display: flex; flex-direction: column; gap: clamp(14px, 2.2vh, 26px); min-width: 0; max-height: 100%; }
+.side { display: flex; flex-direction: column; gap: clamp(12px, 1.8vh, 22px); min-width: 0; max-height: 100%; overflow: hidden; }
 .card {
   position: relative; border-radius: 16px; overflow: hidden;
   background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015)), var(--glass);
@@ -145,6 +154,13 @@ body {
 
 .inbox-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .bars { display: flex; align-items: flex-end; gap: 4px; height: 44px; }
+.counts { display: flex; gap: clamp(18px, 2vw, 32px); align-items: flex-end; }
+.src { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--ink-4); border-radius: 4px; padding: 1px 5px; flex: none; }
+.src.slack { color: #e8a8ff; border-color: rgba(232,168,255,.35); }
+.src.draft { color: var(--green); border-color: rgba(61,214,140,.45); background: rgba(61,214,140,.08); }
+.row-top .name { display: flex; gap: 7px; align-items: center; min-width: 0; }
+.note { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
+.note a { color: var(--ink-2); }
 .bars span { width: 6px; border-radius: 3px; background: linear-gradient(180deg, var(--blue), var(--indigo)); opacity: .85; }
 
 .promise { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; }
@@ -156,10 +172,15 @@ body {
 .promise .m { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
 .promise .m.overdue { color: var(--coral); }
 
-.systems { display: flex; flex-direction: column; gap: 12px; }
-.sys-top { display: flex; gap: 14px; align-items: center; }
-.constellation { flex: none; width: 72px; height: 72px; }
-.sys-head { font-family: var(--serif); font-size: clamp(20px, 2.6vh, 28px); line-height: 1.1; }
+.systems { display: flex; gap: 16px; align-items: center; }
+.sys-top { display: flex; gap: 14px; align-items: center; flex: none; }
+.constellation { flex: none; width: 52px; height: 52px; }
+.systems .sys-sub { margin-top: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-body.slim { padding: 12px 16px; }
+.side > * { flex-shrink: 0; }
+@media (max-width: 1440px) { .card-head { letter-spacing: .12em; padding: 0 12px; } .card-body { padding: 12px; } }
+@media (max-height: 860px) { .big { font-size: 40px; } .inbox-top { margin-bottom: 4px; } .bars { height: 30px; } .row { padding: 5px 0; } .promise { padding: 6px 0; } }
+.sys-head { font-family: var(--serif); font-size: clamp(19px, 2.3vh, 26px); line-height: 1.1; white-space: nowrap; }
 .sys-sub { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; line-height: 1.45; }
 
 .strip-labels { position: relative; height: 14px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
@@ -168,7 +189,7 @@ body {
 .empty { font-size: 13px; color: var(--ink-3); line-height: 1.5; }
 .empty a { color: var(--ink); }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vh, 26px); }
-@media (max-height: 820px) { .hide-short { display: none; } }
+@media (max-height: 1050px) { .hide-short { display: none; } }
 
 .foot {
   position: fixed; z-index: 1; left: var(--safe-side); bottom: calc(var(--safe-bottom) - 40px);
@@ -178,9 +199,9 @@ body {
 .foot .warn { color: var(--amber); }
 
 @media (prefers-reduced-motion: reduce) {
-  .blob, .time .colon { animation: none !important; }
+  .blob, .clk .colon { animation: none !important; }
 }
-.still .blob, .still .time .colon { animation: none !important; }
+.still .blob, .still .clk .colon { animation: none !important; }
 </style>
 </head>
 <body>
@@ -195,8 +216,9 @@ body {
     <div class="centre">
       <div class="centre-inner">
         <div class="eyebrow" id="weekday">—</div>
-        <div class="time" id="time">--<span class="colon">:</span>--</div>
-        <div class="date" id="date">—</div>
+        <div class="day" id="day">—</div>
+        <div class="month" id="month">—</div>
+        <div class="clocks" id="clocks"></div>
         <div class="next" id="next"></div>
       </div>
     </div>
@@ -205,7 +227,7 @@ body {
   <aside class="side">
     <div class="card">
       <div class="card-head"><span>01 // Inbox</span><span id="mailState"></span></div>
-      <div class="card-body" id="mail"><div class="empty">Reading Gmail…</div></div>
+      <div class="card-body" id="mail"><div class="empty">Reading Gmail and Slack…</div></div>
     </div>
     <div class="split">
       <div class="card">
@@ -213,12 +235,16 @@ body {
         <div class="card-body" id="promised"><div class="empty">Reading Foundry…</div></div>
       </div>
       <div class="card">
-        <div class="card-head"><span>03 // Systems</span><span id="sysState"></span></div>
-        <div class="card-body" id="systems"><div class="empty">Reading Foundry…</div></div>
+        <div class="card-head"><span>03 // Drafted</span><span id="draftState"></span></div>
+        <div class="card-body" id="drafts"><div class="empty">—</div></div>
       </div>
     </div>
+    <div class="card">
+      <div class="card-head"><span>04 // Systems</span><span id="sysState"></span></div>
+      <div class="card-body slim" id="systems"><div class="empty">Reading Foundry…</div></div>
+    </div>
     <div class="card hide-short">
-      <div class="card-head"><span>04 // Tomorrow</span><span id="tmrState"></span></div>
+      <div class="card-head"><span>05 // Tomorrow</span><span id="tmrState"></span></div>
       <div class="card-body" id="tomorrow"><div class="empty">—</div></div>
     </div>
   </aside>
@@ -277,6 +303,8 @@ body {
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
   function reasonText(src, r) {
     if (r === "not_connected" || r === "reconnect") return { text: (r === "reconnect" ? "Google needs reconnecting. " : "Google isn't connected yet. "), link: "/connect?k=" + encodeURIComponent(KEY), linkText: "Connect Google" };
+    if (r === "not_connected_slack" || r === "reconnect_slack") return { text: (r === "reconnect_slack" ? "Slack needs reconnecting. " : "Slack isn't connected yet. "), link: "/connect-slack?k=" + encodeURIComponent(KEY), linkText: "Connect Slack" };
+    if (r === "rate_limited") return { text: src + " asked us to slow down; trying again shortly." };
     if (r === "not_configured") return { text: "Add a Foundry API key to show this." };
     if (r === "no_access") return { text: "Couldn't read " + src + ": access was refused." };
     return { text: "Couldn't reach " + src + " just now. Showing nothing rather than guessing." };
@@ -290,15 +318,41 @@ body {
   }
 
   // ---------- clock ----------
+  // Clock times are always 24-hour. "Here" is the Mac's own zone (UK); Pakistan is fixed.
+  var PK_TZ = "Asia/Karachi";
+  function zoned(tz, d) {
+    var parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d);
+    var get = function (t) { return Number((parts.find(function (p) { return p.type === t; }) || {}).value || 0); };
+    return { h: get("hour"), m: get("minute") };
+  }
+  function offsetHours(tz, d) {
+    var here = d.getHours() * 60 + d.getMinutes(), there = zoned(tz, d), diff = there.h * 60 + there.m - here;
+    if (diff > 720) diff -= 1440; if (diff < -720) diff += 1440;
+    var hrs = diff / 60;
+    return (hrs >= 0 ? "+" : "") + (Number.isInteger(hrs) ? hrs : hrs.toFixed(1)) + "H";
+  }
+  function hereLabel() {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    if (tz === "Europe/London") return "UK";
+    var city = tz.split("/").pop() || "Here";
+    return city.replace(/_/g, " ").toUpperCase();
+  }
+  function clockEl(label, colour, hh, mm, extra, cls) {
+    var c = h("div", "clk" + (cls ? " " + cls : ""));
+    var l = h("div", "lbl"); var dot = h("i"); dot.style.background = colour; l.appendChild(dot); l.appendChild(document.createTextNode(label)); c.appendChild(l);
+    var v = h("div", "val"); v.appendChild(document.createTextNode(pad(hh))); v.appendChild(h("span", "colon", ":")); v.appendChild(document.createTextNode(pad(mm))); c.appendChild(v);
+    if (extra) c.appendChild(h("div", "off", extra));
+    return c;
+  }
   function renderClock() {
     var now = new Date();
     document.getElementById("weekday").textContent = now.toLocaleDateString("en-GB", { weekday: "long" }) + " · W" + isoWeek(now);
-    var t = document.getElementById("time");
-    t.innerHTML = "";
-    t.appendChild(document.createTextNode(pad(now.getHours())));
-    var c = h("span", "colon", ":"); t.appendChild(c);
-    t.appendChild(document.createTextNode(pad(now.getMinutes())));
-    document.getElementById("date").textContent = now.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+    document.getElementById("day").textContent = String(now.getDate());
+    document.getElementById("month").textContent = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    var box = document.getElementById("clocks"); clear(box);
+    box.appendChild(clockEl(hereLabel(), "#ffffff", now.getHours(), now.getMinutes(), null));
+    var pk = zoned(PK_TZ, now);
+    box.appendChild(clockEl("PAKISTAN", "#3dd68c", pk.h, pk.m, offsetHours(PK_TZ, now), "pk"));
   }
   function isoWeek(d) {
     var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -367,6 +421,11 @@ body {
       if (live) path.setAttribute("filter", "url(#glow)");
       var tt = el("title", {}, path); tt.textContent = hm(s) + " " + e.title;
     });
+
+    // Pakistan's "now", as a hollow green marker on the outer ring
+    var pkz = zoned(PK_TZ, now), pkH = pkz.h + pkz.m / 60, pkp = pt(R_TICK + 6, pkH), pkl = pt(R_TICK + 40, pkH);
+    el("circle", { cx: pkp[0], cy: pkp[1], r: 9, fill: "#060a18", stroke: "#3dd68c", "stroke-width": 3 }, svg);
+    var pkt = el("text", { x: pkl[0], y: pkl[1] + 4, "text-anchor": "middle", fill: "#3dd68c", style: "fill:#3dd68c" }, svg); pkt.textContent = "PK";
 
     // now hand
     var inner = pt(R_ARC - 60, nowH), outer = pt(R_TICK + 6, nowH);
@@ -439,41 +498,95 @@ body {
     box.appendChild(r);
   }
 
-  // ---------- inbox ----------
+  // ---------- inbox: Gmail + Slack ----------
+  function draftRefs() {
+    var set = {};
+    if (data && data.drafts && data.drafts.ok) data.drafts.drafts.forEach(function (d) { if (d.ref) set[d.ref] = true; });
+    return set;
+  }
+  function countBlock(n, label) {
+    var b = h("div", "big", n == null ? "–" : String(n)); b.appendChild(h("small", null, label)); return b;
+  }
   function renderMail() {
     var box = document.getElementById("mail");
     clear(box);
     if (!data) return;
-    var m = data.mail;
-    if (!m.ok) { document.getElementById("mailState").textContent = ""; emptyMsg(box, "Gmail", m.reason); return; }
-    document.getElementById("mailState").textContent = m.primaryUnread + " primary";
+    var m = data.mail, sl = data.slack || { ok: false, reason: "not_connected_slack" }, drafted = draftRefs();
+    document.getElementById("mailState").textContent = m.ok ? m.primaryUnread + " primary" : "";
     var top = h("div", "inbox-top");
-    var big = h("div", "big", String(m.unread));
-    big.appendChild(h("small", null, "unread"));
-    top.appendChild(big);
-    // one bar per message by age: newer = taller
+    var counts = h("div", "counts");
+    counts.appendChild(countBlock(m.ok ? m.unread : null, "email"));
+    counts.appendChild(countBlock(sl.ok ? sl.mentions + sl.dms : null, "Slack · " + (sl.days || 3) + "d"));
+    top.appendChild(counts);
     var bars = h("div", "bars");
-    m.messages.slice().reverse().forEach(function (msg) {
-      var age = (Date.now() - Date.parse(msg.at)) / 3600000;
-      var s = h("span"); s.style.height = Math.max(8, 44 - Math.min(age, 48) * .75) + "px";
-      s.style.background = "hsl(" + hue(msg.domain || msg.from) + " 80% 66%)";
-      bars.appendChild(s);
-    });
     top.appendChild(bars);
     box.appendChild(top);
-    if (!m.messages.length) { box.appendChild(h("div", "empty", "Primary is clear.")); return; }
-    m.messages.slice(0, 5).forEach(function (msg) {
+
+    var rows = [];
+    if (m.ok) m.messages.forEach(function (x) { rows.push({ src: "mail", who: x.from, key: x.domain || x.from, sub: x.subject, at: x.at, ref: x.threadId }); });
+    if (sl.ok) sl.items.forEach(function (x) { rows.push({ src: "slack", who: x.from, key: x.fromId || x.from, sub: (x.channel ? "#" + x.channel + " · " : "") + x.text, at: x.at, ref: x.id, tag: x.kind === "dm" ? "DM" : x.channel ? "#" + x.channel : "Mention" }); });
+    rows.sort(function (a, b) { return Date.parse(b.at) - Date.parse(a.at); });
+
+    rows.slice(0, 12).reverse().forEach(function (x) {
+      var age = (Date.now() - Date.parse(x.at)) / 3600000;
+      var bar = h("span"); bar.style.height = Math.max(8, 44 - Math.min(age, 48) * .75) + "px";
+      bar.style.background = x.src === "slack" ? "linear-gradient(180deg,#e8a8ff,#a855f7)" : "hsl(" + hue(x.key) + " 80% 66%)";
+      bars.appendChild(bar);
+    });
+
+    rows.slice(0, innerHeight < 860 ? 3 : innerHeight < 1000 ? 4 : 5).forEach(function (x) {
       var row = h("div", "row");
-      var av = h("div", "avatar", (msg.from || "?").trim().charAt(0).toUpperCase());
-      var hu = hue(msg.domain || msg.from);
+      var av = h("div", "avatar", (x.who || "?").trim().charAt(0).toUpperCase());
+      var hu = hue(x.key);
       av.style.background = "linear-gradient(135deg, hsl(" + hu + " 85% 72%), hsl(" + ((hu + 40) % 360) + " 80% 60%))";
       row.appendChild(av);
       var tx = h("div", "row-text");
       var t = h("div", "row-top");
-      t.appendChild(h("span", "trunc private", msg.from));
-      t.appendChild(h("span", "when", ago(msg.at)));
+      var name = h("span", "name");
+      name.appendChild(h("span", "trunc private", x.who));
+      name.appendChild(h("span", "src" + (x.src === "slack" ? " slack" : ""), x.src === "slack" ? "Slack" : "Mail"));
+      if (x.ref && drafted[x.ref]) name.appendChild(h("span", "src draft", "Draft"));
+      t.appendChild(name);
+      t.appendChild(h("span", "when", ago(x.at)));
       tx.appendChild(t);
-      tx.appendChild(h("div", "row-sub private", msg.subject));
+      tx.appendChild(h("div", "row-sub private", x.src === "slack" ? x.sub : x.sub));
+      row.appendChild(tx);
+      box.appendChild(row);
+    });
+    if (!rows.length && m.ok && sl.ok) box.appendChild(h("div", "empty", "Nothing waiting. Primary and Slack are clear."));
+
+    // Say plainly which source couldn't be read, instead of reading as "nothing there".
+    [[m, "Gmail"], [sl, "Slack"]].forEach(function (pair) {
+      if (pair[0].ok) return;
+      var info = reasonText(pair[1], pair[0].reason);
+      var n = h("div", "note", info.text);
+      if (info.link) { var a = h("a", null, info.linkText); a.href = info.link; n.appendChild(a); }
+      box.appendChild(n);
+    });
+  }
+
+  // ---------- drafted by Claude ----------
+  function renderDrafts() {
+    var box = document.getElementById("drafts");
+    clear(box);
+    if (!data) return;
+    var d = data.drafts;
+    var st = document.getElementById("draftState");
+    if (!d || !d.ok) { st.textContent = ""; box.appendChild(h("div", "empty", "The drafter on your Mac hasn't run yet. See the README: local/draft-replies.sh.")); return; }
+    var mins = Math.round((Date.now() - Date.parse(d.generatedAt)) / 60000);
+    st.textContent = (mins < 60 ? mins + "m" : Math.round(mins / 60) + "h") + " ago";
+    st.style.color = mins > 180 ? "var(--amber)" : "";
+    var big = countBlock(d.drafts.length, "ready");
+    big.style.marginBottom = "8px";
+    box.appendChild(big);
+    if (!d.drafts.length) { box.appendChild(h("div", "empty", "Nothing needed a reply last run.")); return; }
+    var order = { high: 0, normal: 1, low: 2 };
+    d.drafts.slice().sort(function (a, b) { return order[a.urgency] - order[b.urgency]; }).slice(0, innerHeight < 1000 ? 2 : 3).forEach(function (x) {
+      var row = h("div", "promise");
+      row.appendChild(h("span", "ring" + (x.urgency === "high" ? " overdue" : "")));
+      var tx = h("div", "row-text");
+      tx.appendChild(h("div", "t private", x.to + ": " + x.about));
+      tx.appendChild(h("div", "m", (x.source === "slack" ? "Slack draft" : "Gmail draft") + (x.client ? " · " + x.client : "")));
       row.appendChild(tx);
       box.appendChild(row);
     });
@@ -486,13 +599,13 @@ body {
     if (!data) return;
     var c = data.commitments;
     if (!c.ok) { emptyMsg(box, "Commitments", c.reason); return; }
-    document.getElementById("promState").textContent = c.overdue ? c.overdue + " late" : c.open + " open";
+    document.getElementById("promState").textContent = c.overdue ? c.overdue + " late" : "";
     var big = h("div", "big", String(c.open)); big.appendChild(h("small", null, c.suggested ? c.suggested + " to review" : "open"));
     big.style.marginBottom = "8px";
     box.appendChild(big);
     if (!c.items.length) { box.appendChild(h("div", "empty", "Nothing promised. Enjoy it.")); return; }
     var todayKey = dayKey(new Date());
-    c.items.slice(0, innerHeight < 900 ? 2 : 3).forEach(function (it) {
+    c.items.slice(0, innerHeight < 1000 ? 2 : 3).forEach(function (it) {
       var row = h("div", "promise");
       var due = it.dueAt ? new Date(it.dueAt) : null;
       var overdue = due && due.getTime() < Date.now(), today = due && dayKey(due) === todayKey;
@@ -550,7 +663,7 @@ body {
   }
 
   function renderAll() {
-    renderClock(); renderDial(); renderNext(); renderMail(); renderPromised(); renderSystems(); renderTomorrow(); renderFoot();
+    renderClock(); renderDial(); renderNext(); renderMail(); renderDrafts(); renderPromised(); renderSystems(); renderTomorrow(); renderFoot();
   }
 
   function load() {
