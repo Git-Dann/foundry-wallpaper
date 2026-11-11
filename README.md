@@ -60,30 +60,38 @@ same searches you'd type in Slack. Not yet checked against a real workspace: if 
 (There's also a sign-in route, `/connect-slack`, for an app set up with `SLACK_CLIENT_ID`,
 `SLACK_CLIENT_SECRET` and the redirect URL `…/oauth/slack`. You only need one of the two.)
 
-### 4. Claude drafts your replies (runs on your Mac)
+### 4. Claude suggests your replies (runs on your Mac)
 
-`local/draft-replies.sh` runs your own Claude Code with your own connectors (Gmail, Slack, Foundry,
-Calendar). It finds messages waiting on you, looks up the client, tasks and meeting notes in
-Foundry, and writes a **draft** in your voice. It never sends: send, reply, forward and post tools
-are blocked, and `claude -p` refuses any tool not on its allow-list. It then tells the wallpaper
-what it drafted, so those rows get a green DRAFT tag. The draft text itself stays in Gmail/Slack;
-only "who" and "about" reach the wallpaper.
+Two scheduled jobs, run by your own Claude Code with your own connectors. **Neither can send.**
 
-1. Install Claude Code (`npm i -g @anthropic-ai/claude-code`), sign in, and `brew install jq`.
-2. Make sure your connectors show up: `claude mcp list`.
-3. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste your wallpaper
-   link (with its `?k=`) under `WALLPAPERS`. (More than one link, one per line, also works.)
-4. `./local/draft-replies.sh --check` and fix the four server names in that file if they differ
-   from what `claude mcp list` shows.
-5. `./local/draft-replies.sh` to run it now. Check the drafts in Gmail and Slack before trusting it.
-6. `./local/draft-replies.sh --install` to run it hourly on weekdays, 07:00–19:00.
+- **Suggest** (hourly, weekdays 07:00–19:00): finds email and Slack waiting on you, looks up the
+  client, tasks and meeting notes in Foundry, and writes a suggested reply in your voice. It has
+  **no** tool that writes to Gmail or Slack. The suggestions appear on the wallpaper.
+- **Accept or reject** on the wallpaper (Plash browsing mode on), or read and edit the full text
+  at `<address>/review?k=…`. Rejected is final: it won't be suggested again.
+- **Save** (every 5 minutes): saves the replies you accepted as **drafts** in Gmail or Slack,
+  word for word. Only draft tools are allowed. When nothing is accepted it doesn't start Claude
+  at all, so it costs nothing.
 
-Cost: each run is one Claude Code session. A trivial run measured $0.36 on the default model, so it
-uses Sonnet by default (`MODEL` in the env file). A real run reading a dozen threads will cost more;
-check the first few in your usage page before leaving it on. On a Claude subscription it counts
-against your plan's limits instead.
+Set-up:
+1. Install Claude Code (`curl -fsSL https://claude.ai/install.sh | bash`), sign in, and
+   `brew install jq git`.
+2. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste your wallpaper
+   link (with its `?k=`) under `WALLPAPERS`.
+3. `./local/draft-replies.sh --check` and fix the four server names in that file if they differ.
+4. `./local/draft-replies.sh` to get suggestions now; `./local/draft-replies.sh --place` to save
+   accepted ones now.
+5. `./local/draft-replies.sh --install` to schedule both jobs. Run it again after a `git pull`
+   that changes the schedule.
 
-Edit `local/prompt.md` to change how it writes or what it skips.
+Log: `~/.foundry-drafter/drafter.log`. Edit `local/prompt.md` (suggestions) or `local/place.md`
+(saving drafts) to change how they work.
+
+### Recurring tasks
+
+The **Next 7 days** strip shows every dated, open commitment from Foundry → Backstage →
+Commitments, with repeating ones (↻) expanded onto each day they fall in the week. Add a
+repeating task there (or ask Claude to) and it appears within a minute.
 
 ### 5. Plash
 

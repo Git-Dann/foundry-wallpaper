@@ -1,22 +1,25 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["drafts", "skipped"],
+  "required": ["suggestions", "skipped"],
   "properties": {
-    "drafts": {
+    "suggestions": {
       "type": "array",
       "maxItems": 10,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source", "to", "about", "ref", "urgency"],
+        "required": ["source", "to", "about", "ref", "urgency", "body", "replyingTo"],
         "properties": {
           "source": { "enum": ["gmail", "slack"] },
           "to": { "type": "string" },
           "about": { "type": "string" },
           "client": { "type": ["string", "null"] },
           "ref": { "type": "string" },
-          "urgency": { "enum": ["high", "normal", "low"] }
+          "urgency": { "enum": ["high", "normal", "low"] },
+          "subject": { "type": ["string", "null"] },
+          "body": { "type": "string" },
+          "replyingTo": { "type": "string" }
         }
       }
     },

@@ -29,7 +29,17 @@ const sample = () => ({
     { from: "Waqar", domain: "gitwork.co.uk", subject: "Fellas Android build ready for review", at: ago(180) },
     { from: "Coachman", domain: "coachman.co.uk", subject: "Caravan configurator: phase 2 scope", at: ago(400) },
   ] },
-  commitments: { ok: true, open: 7, overdue: 1, suggested: 2, items: [
+  commitments: { ok: true, open: 7, overdue: 1, suggested: 2, week: [
+    { id: "w0", title: "Send Valu the revised proposal", at: ago(60 * 20), late: true, recurring: false },
+    { id: "w1", title: "Timesheets", at: at(17, 0), recurring: true, rule: "weekdays" },
+    { id: "w2", title: "Timesheets", at: at(17, 0, 1), recurring: true, rule: "weekdays" },
+    { id: "w3", title: "Send GAIA weekly update", at: at(10, 0, 2), recurring: true, rule: "weekly", counterpart: "GAIA" },
+    { id: "w4", title: "Send Campfire weekly update", at: at(10, 30, 2), recurring: true, rule: "weekly", counterpart: "Campfire" },
+    { id: "w5", title: "Timesheets", at: at(17, 0, 2), recurring: true, rule: "weekdays" },
+    { id: "w6", title: "Review Coachman phase 2", at: at(12, 0, 5), recurring: false },
+    { id: "w7", title: "Timesheets", at: at(17, 0, 5), recurring: true, rule: "weekdays" },
+    { id: "w8", title: "Invoices", at: at(9, 0, 6), recurring: true, rule: "monthly" },
+  ], items: [
     { title: "Send Valu the revised proposal", dueAt: ago(60 * 20), counterpart: "Valu" },
     { title: "Reply to Luke on the course feed outage", dueAt: at(17, 0), counterpart: "Big Wedge" },
     { title: "Review Coachman phase 2 estimate", dueAt: at(12, 0, 2), counterpart: "Coachman" },
@@ -39,10 +49,10 @@ const sample = () => ({
     { id: "D1:2", kind: "dm", from: "Syed", fromId: "U2", channel: null, text: "Coachman want to move Thursday's call to Friday, ok?", at: ago(55) },
     { id: "C2:3", kind: "mention", from: "Waqar", fromId: "U3", channel: "wedge-dev", text: "@Dan course feed is back, catching up 41 requests", at: ago(130) },
   ] },
-  drafts: { ok: true, generatedAt: ago(18), skipped: 4, drafts: [
-    { source: "gmail", to: "Luke McFarland", about: "Confirming 3.4 approval and the course-feed fix", client: "Big Wedge", ref: "t1", urgency: "high" },
-    { source: "slack", to: "Syed", about: "Friday works, 2pm UK", client: "Coachman", ref: "D1:2", urgency: "normal" },
-    { source: "gmail", to: "Sarah Chen", about: "Thanks for the notes, proposal by Friday", client: "Valu", ref: "t2", urgency: "normal" },
+  drafts: { ok: true, generatedAt: ago(18), skipped: 4, items: [
+    { id: "s1", state: "pending", source: "gmail", to: "Luke McFarland", about: "Confirming 3.4 approval and the course-feed fix", client: "Big Wedge", ref: "t1", urgency: "high", subject: "Re: iOS 3.4 approval and the new course feed", replyingTo: "Luke asked whether 3.4 is approved and when the course feed fix lands.", body: "Hi Luke,\n\nYes, 3.4 is approved on our side. The course feed fix goes out with it on Thursday.\n\nDan", createdAt: ago(18) },
+    { id: "s2", state: "pending", source: "slack", to: "Syed", about: "Friday works, 2pm UK", client: "Coachman", ref: "D1:2", urgency: "normal", subject: null, replyingTo: "Syed asked if the Coachman call can move to Friday.", body: "Friday works. 2pm UK?", createdAt: ago(55) },
+    { id: "s3", state: "accepted", source: "gmail", to: "Sarah Chen", about: "Thanks for the notes, proposal by Friday", client: "Valu", ref: "t2", urgency: "normal", subject: "Re: Discovery call notes", replyingTo: "Sarah sent notes from the discovery call.", body: "Thanks Sarah, these are great. You'll have the proposal by Friday.\n\nDan", createdAt: ago(90) },
   ] },
   monitors: { ok: true, total: 18, up: 16, down: [], trouble: [{ client: "Fellas Loaded", name: "Analytics", state: "flaky" }, { client: "Wedge", name: "Course API", state: "slow" }],
     dots: [...Array(16).fill("up"), "flaky", "slow"], incidents: 0 },
@@ -65,7 +75,7 @@ if (process.argv.includes("--live") && !LIVE) {
 
 // Live reload: the page holds an event stream open and reloads when page.html changes.
 const listeners = new Set();
-watch(new URL("./src/page.html", import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
+for (const f of ["./src/page.html", "./src/review.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
 const RELOADER = `<script>new EventSource("/__reload").onmessage=function(){location.reload()};</script>`;
 
 createServer(async (req, res) => {
@@ -95,6 +105,8 @@ createServer(async (req, res) => {
   }
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.setHeader("cache-control", "no-store");
-  res.end(readFileSync(new URL("./src/page.html", import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
+  const file = u.pathname === "/review" ? "./src/review.html" : "./src/page.html";
+  if (u.pathname === "/api/drafts/decide") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ ok: true, state: "accepted" })); }
+  res.end(readFileSync(new URL(file, import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
 }).listen(Number(process.env.PORT || 8788), () =>
   console.log(`Preview on http://localhost:${process.env.PORT || 8788} with ${LIVE ? "your real data" : "made-up data"}. It reloads when you save src/page.html. Ctrl+C to stop.`));

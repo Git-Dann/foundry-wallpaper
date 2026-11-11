@@ -83,8 +83,10 @@ body {
 }
 
 /* ---------- the dial ---------- */
-.dialWrap { position: relative; display: grid; place-items: center; height: 100%; min-height: 0; }
-.dial { width: min(100%, calc(100vh - var(--safe-top) - var(--safe-bottom))); aspect-ratio: 1; max-height: 100%; overflow: visible; }
+.dialWrap { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 2.4vh, 28px); height: 100%; min-height: 0; }
+.dialBox { position: relative; width: min(100%, calc(100vh - var(--safe-top) - var(--safe-bottom) - clamp(160px, 19vh, 230px))); aspect-ratio: 1; flex: none; }
+.dial { width: 100%; height: 100%; overflow: visible; display: block; }
+.weekCard { width: min(100%, 900px); flex: none; }
 .dial text { font-family: var(--mono); fill: var(--ink-3); font-size: 11px; letter-spacing: .14em; }
 .centre {
   position: absolute; inset: 0; display: grid; place-items: center; text-align: center; pointer-events: none;
@@ -186,6 +188,29 @@ body {
 .strip-labels { position: relative; height: 14px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
 .strip-labels span { position: absolute; transform: translateX(-50%); }
 .strip-labels span:first-child { transform: none; }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.wd { min-width: 0; border-radius: 8px; padding: 6px 6px 8px; background: rgba(255,255,255,.025); border: 1px solid rgba(233,236,248,.05); display: flex; flex-direction: column; gap: 4px; }
+.wd.today { background: rgba(59,130,246,.12); border-color: rgba(96,165,250,.35); }
+.wd .dn { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; gap: 4px; }
+.wd.today .dn { color: var(--ink); }
+.wd .mt { display: flex; gap: 2px; height: 4px; }
+.wd .mt i { flex: 1; border-radius: 2px; background: #60a5fa; opacity: .7; }
+.wd .mt i.ext { background: #f5b14c; }
+.task { font-size: 11px; line-height: 1.3; padding: 3px 5px; border-radius: 4px; background: rgba(139,92,246,.16); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task.rec::before { content: "↻ "; color: #c4b5fd; }
+.task.late { background: rgba(255,122,107,.16); color: #ffb3aa; }
+.more { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.sugg { display: flex; flex-direction: column; gap: 4px; padding: 5px 0; }
+.sugg .t { font-size: 13px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+.sugg .m { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
+.sugg .acts { flex: none; }
+.sugg + .sugg { border-top: 1px solid rgba(233,236,248,.05); }
+.sugg .acts { display: flex; gap: 6px; }
+.btn { font: 600 11px var(--sans); letter-spacing: .02em; border-radius: 6px; padding: 4px 9px; cursor: pointer; border: 1px solid var(--ink-4); background: transparent; color: var(--ink-2); }
+.btn.yes { border-color: rgba(61,214,140,.5); color: var(--green); background: rgba(61,214,140,.08); }
+.btn.no:hover { color: var(--coral); border-color: rgba(255,122,107,.5); }
+.btn:disabled { opacity: .5; cursor: default; }
+.review-link { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
 .empty { font-size: 13px; color: var(--ink-3); line-height: 1.5; }
 .empty a { color: var(--ink); }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vh, 26px); }
@@ -212,6 +237,7 @@ body {
 
 <main class="stage">
   <section class="dialWrap">
+    <div class="dialBox">
     <svg class="dial" id="dial" viewBox="0 0 1000 1000" aria-label="Today"></svg>
     <div class="centre">
       <div class="centre-inner">
@@ -221,6 +247,11 @@ body {
         <div class="clocks" id="clocks"></div>
         <div class="next" id="next"></div>
       </div>
+    </div>
+    </div>
+    <div class="card weekCard">
+      <div class="card-head"><span>05 // Next 7 days</span><span id="weekState"></span></div>
+      <div class="card-body slim" id="week"><div class="empty">—</div></div>
     </div>
   </section>
 
@@ -235,17 +266,13 @@ body {
         <div class="card-body" id="promised"><div class="empty">Reading Foundry…</div></div>
       </div>
       <div class="card">
-        <div class="card-head"><span>03 // Drafted</span><span id="draftState"></span></div>
+        <div class="card-head"><span>03 // Suggested replies</span><span id="draftState"></span></div>
         <div class="card-body" id="drafts"><div class="empty">—</div></div>
       </div>
     </div>
     <div class="card">
       <div class="card-head"><span>04 // Systems</span><span id="sysState"></span></div>
       <div class="card-body slim" id="systems"><div class="empty">Reading Foundry…</div></div>
-    </div>
-    <div class="card hide-short">
-      <div class="card-head"><span>05 // Tomorrow</span><span id="tmrState"></span></div>
-      <div class="card-body" id="tomorrow"><div class="empty">—</div></div>
     </div>
   </aside>
 </main>
@@ -465,45 +492,50 @@ body {
     if (after > 0) box.appendChild(h("div", "eyebrow", "+" + after + " more today")).style.marginTop = "12px";
   }
 
-  function renderTomorrow() {
-    var box = document.getElementById("tomorrow");
+  function renderWeek() {
+    var box = document.getElementById("week");
     clear(box);
     if (!data) return;
-    if (!data.calendar.ok) { emptyMsg(box, "Calendar", data.calendar.reason); return; }
-    var t = new Date(); t.setDate(t.getDate() + 1);
-    var key = dayKey(t);
-    var evs = data.calendar.events.filter(function (e) { return !e.allDay && dayKey(new Date(e.start)) === key; });
-    document.getElementById("tmrState").textContent = t.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
-    if (!evs.length) { box.appendChild(h("div", "empty", "Nothing booked yet.")); return; }
-    // a 07:00–20:00 strip
-    var strip = document.createElementNS(NS, "svg");
-    strip.setAttribute("viewBox", "0 0 1000 40"); strip.setAttribute("preserveAspectRatio", "none"); strip.style.width = "100%"; strip.style.height = "40px"; strip.style.display = "block";
-    el("rect", { x: 0, y: 14, width: 1000, height: 12, rx: 6, fill: "rgba(233,236,248,.06)" }, strip);
-    var labels = h("div", "strip-labels");
-    for (var hh = 7; hh <= 20; hh++) {
-      var x = ((hh - 7) / 13) * 1000;
-      el("line", { x1: x, y1: 32, x2: x, y2: 38, stroke: "rgba(233,236,248,.2)" }, strip);
-      if (hh % 3 === 1) { var lb = h("span", null, pad(hh)); lb.style.left = ((hh - 7) / 13) * 100 + "%"; labels.appendChild(lb); }
+    var c = data.commitments, cal = data.calendar;
+    if (!c.ok && !cal.ok) { emptyMsg(box, "Foundry", c.reason); return; }
+    var start = new Date(); start.setHours(0, 0, 0, 0);
+    var grid = h("div", "week");
+    var total = 0, rec = 0;
+    var maxTasks = innerHeight < 1000 ? 2 : 3;
+    for (var i = 0; i < 7; i++) {
+      var day = new Date(start.getTime()); day.setDate(start.getDate() + i);
+      var key = dayKey(day);
+      var col = h("div", "wd" + (i === 0 ? " today" : ""));
+      var dn = h("div", "dn");
+      dn.appendChild(h("span", null, i === 0 ? "Today" : day.toLocaleDateString("en-GB", { weekday: "short" })));
+      dn.appendChild(h("span", null, String(day.getDate())));
+      col.appendChild(dn);
+      var mt = h("div", "mt");
+      if (cal.ok) cal.events.filter(function (e) { return !e.allDay && dayKey(new Date(e.start)) === key; }).slice(0, 8).forEach(function (e) { mt.appendChild(h("i", e.external ? "ext" : "")); });
+      col.appendChild(mt);
+      var tasks = c.ok ? (c.week || []).filter(function (t) { return t.late ? i === 0 : dayKey(new Date(t.at)) === key; }) : [];
+      total += tasks.length; rec += tasks.filter(function (t) { return t.recurring; }).length;
+      tasks.slice(0, maxTasks).forEach(function (t) {
+        var el2 = h("div", "task private" + (t.recurring ? " rec" : "") + (t.late ? " late" : ""), t.title);
+        el2.title = t.title + (t.counterpart ? " · " + t.counterpart : "") + (t.rule ? " · repeats " + t.rule : "");
+        col.appendChild(el2);
+      });
+      if (tasks.length > maxTasks) col.appendChild(h("div", "more", "+" + (tasks.length - maxTasks)));
+      grid.appendChild(col);
     }
-    evs.forEach(function (e) {
-      var a = Math.max(7, hourOf(new Date(e.start))), b = Math.min(20, hourOf(new Date(e.end)));
-      if (b <= a) return;
-      el("rect", { x: ((a - 7) / 13) * 1000 + 2, y: 11, width: Math.max(8, ((b - a) / 13) * 1000 - 4), height: 18, rx: 4, fill: e.external ? "#f5b14c" : "#60a5fa", opacity: .9 }, strip);
-    });
-    box.appendChild(labels);
-    box.appendChild(strip);
-    var first = evs[0];
-    var r = h("div", "row-sub private", "First: " + hm(new Date(first.start)) + " · " + first.title + (evs.length > 1 ? "  ·  " + evs.length + " meetings" : ""));
-    r.style.marginTop = "8px";
-    box.appendChild(r);
+    document.getElementById("weekState").textContent = c.ok ? total + " tasks · " + rec + " repeating" : "";
+    box.appendChild(grid);
+    if (c.ok && !total) box.appendChild(h("div", "note", "No dated tasks this week. Add repeating ones in Foundry → Backstage → Commitments."));
+    if (!c.ok) box.appendChild(h("div", "note", reasonText("Foundry", c.reason).text));
   }
 
   // ---------- inbox: Gmail + Slack ----------
   function draftRefs() {
-    var set = {};
-    if (data && data.drafts && data.drafts.ok) data.drafts.drafts.forEach(function (d) { if (d.ref) set[d.ref] = true; });
-    return set;
+    var map = {};
+    if (data && data.drafts && data.drafts.ok) (data.drafts.items || []).forEach(function (d) { if (d.ref && d.state !== "rejected") map[d.ref] = d.state; });
+    return map;
   }
+  var TAG = { pending: "Reply ready", accepted: "Accepted", placed: "Draft saved", failed: "Draft failed" };
   function countBlock(n, label) {
     var b = h("div", "big", n == null ? "–" : String(n)); b.appendChild(h("small", null, label)); return b;
   }
@@ -512,10 +544,10 @@ body {
     clear(box);
     if (!data) return;
     var m = data.mail, sl = data.slack || { ok: false, reason: "not_connected_slack" }, drafted = draftRefs();
-    document.getElementById("mailState").textContent = m.ok ? m.primaryUnread + " primary" : "";
+    document.getElementById("mailState").textContent = m.ok ? m.unread + " unread in inbox" : "";
     var top = h("div", "inbox-top");
     var counts = h("div", "counts");
-    counts.appendChild(countBlock(m.ok ? m.unread : null, "email"));
+    counts.appendChild(countBlock(m.ok ? m.primaryUnread : null, "Primary"));
     counts.appendChild(countBlock(sl.ok ? sl.mentions + sl.dms : null, "Slack · " + (sl.days || 3) + "d"));
     top.appendChild(counts);
     var bars = h("div", "bars");
@@ -545,7 +577,7 @@ body {
       var name = h("span", "name");
       name.appendChild(h("span", "trunc private", x.who));
       name.appendChild(h("span", "src" + (x.src === "slack" ? " slack" : ""), x.src === "slack" ? "Slack" : "Mail"));
-      if (x.ref && drafted[x.ref]) name.appendChild(h("span", "src draft", "Draft"));
+      if (x.ref && drafted[x.ref]) name.appendChild(h("span", "src draft", TAG[drafted[x.ref]] || "Reply ready"));
       t.appendChild(name);
       t.appendChild(h("span", "when", ago(x.at)));
       tx.appendChild(t);
@@ -566,30 +598,53 @@ body {
   }
 
   // ---------- drafted by Claude ----------
+  // Local decisions win until the server has caught up (its storage can lag by a minute).
+  var decided = {};
+  function decide(id, action, btns) {
+    btns.forEach(function (b) { b.disabled = true; });
+    fetch("/api/drafts/decide?k=" + encodeURIComponent(KEY), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: id, action: action }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok && r.status !== 409) throw new Error(j.message || r.status); return j; }); })
+      .then(function () { decided[id] = action === "accept" ? "accepted" : "rejected"; renderDrafts(); renderMail(); })
+      .catch(function () { btns.forEach(function (b) { b.disabled = false; }); });
+  }
   function renderDrafts() {
     var box = document.getElementById("drafts");
     clear(box);
     if (!data) return;
     var d = data.drafts;
     var st = document.getElementById("draftState");
-    if (!d || !d.ok) { st.textContent = ""; box.appendChild(h("div", "empty", "The drafter on your Mac hasn't run yet. See the README: local/draft-replies.sh.")); return; }
-    var mins = Math.round((Date.now() - Date.parse(d.generatedAt)) / 60000);
-    st.textContent = (mins < 60 ? mins + "m" : Math.round(mins / 60) + "h") + " ago";
-    st.style.color = mins > 180 ? "var(--amber)" : "";
-    var big = countBlock(d.drafts.length, "ready");
-    big.style.marginBottom = "8px";
-    box.appendChild(big);
-    if (!d.drafts.length) { box.appendChild(h("div", "empty", "Nothing needed a reply last run.")); return; }
+    if (!d || !d.ok) { st.textContent = ""; box.appendChild(h("div", "empty", "The drafter on your Mac hasn't run yet.")); return; }
+    var items = (d.items || []).map(function (x) { return decided[x.id] ? Object.assign({}, x, { state: decided[x.id] }) : x; });
+    var pending = items.filter(function (x) { return x.state === "pending"; });
+    var waiting = items.filter(function (x) { return x.state === "accepted"; }).length;
+    var mins = d.generatedAt ? Math.round((Date.now() - Date.parse(d.generatedAt)) / 60000) : null;
+    var ran = mins == null ? "" : "Checked " + (mins < 60 ? mins + "m" : Math.round(mins / 60) + "h") + " ago";
+    var top = h("div", "inbox-top");
+    top.appendChild(countBlock(pending.length, "to review"));
+    top.style.marginBottom = "4px";
+    box.appendChild(top);
+    var link = h("a", "review-link", "Read, edit or decide all ↗"); link.href = "/review?k=" + encodeURIComponent(KEY); link.target = "_blank"; link.rel = "noopener";
+    st.textContent = "";
+    box.appendChild(h("div", "note", (waiting ? waiting + " accepted · saving as draft" + (waiting > 1 ? "s" : "") + " within 5 min · " : "") + ran));
+    if (!pending.length) { box.appendChild(h("div", "empty", "Nothing waiting on you.")); box.appendChild(link); return; }
     var order = { high: 0, normal: 1, low: 2 };
-    d.drafts.slice().sort(function (a, b) { return order[a.urgency] - order[b.urgency]; }).slice(0, innerHeight < 1000 ? 2 : 3).forEach(function (x) {
-      var row = h("div", "promise");
-      row.appendChild(h("span", "ring" + (x.urgency === "high" ? " overdue" : "")));
+    pending.sort(function (a, b) { return order[a.urgency] - order[b.urgency]; }).slice(0, innerHeight < 900 ? 1 : innerHeight < 1100 ? 2 : 3).forEach(function (x) {
+      var row = h("div", "sugg");
       var tx = h("div", "row-text");
       tx.appendChild(h("div", "t private", x.to + ": " + x.about));
-      tx.appendChild(h("div", "m", (x.source === "slack" ? "Slack draft" : "Gmail draft") + (x.client ? " · " + x.client : "")));
+      tx.appendChild(h("div", "m", (x.source === "slack" ? "Slack" : "Gmail") + (x.client ? " · " + x.client : "")));
       row.appendChild(tx);
+      var acts = h("div", "acts");
+      var yes = h("button", "btn yes", "Accept"), no = h("button", "btn no", "Reject");
+      yes.type = no.type = "button";
+      yes.addEventListener("click", function () { decide(x.id, "accept", [yes, no]); });
+      no.addEventListener("click", function () { decide(x.id, "reject", [yes, no]); });
+      acts.appendChild(yes); acts.appendChild(no);
+      row.appendChild(acts);
       box.appendChild(row);
     });
+    link.style.display = "inline-block"; link.style.marginTop = "6px";
+    box.appendChild(link);
   }
 
   // ---------- promised ----------
@@ -605,7 +660,7 @@ body {
     box.appendChild(big);
     if (!c.items.length) { box.appendChild(h("div", "empty", "Nothing promised. Enjoy it.")); return; }
     var todayKey = dayKey(new Date());
-    c.items.slice(0, innerHeight < 1000 ? 2 : 3).forEach(function (it) {
+    c.items.slice(0, innerHeight < 900 ? 1 : innerHeight < 1000 ? 2 : 3).forEach(function (it) {
       var row = h("div", "promise");
       var due = it.dueAt ? new Date(it.dueAt) : null;
       var overdue = due && due.getTime() < Date.now(), today = due && dayKey(due) === todayKey;
@@ -663,7 +718,7 @@ body {
   }
 
   function renderAll() {
-    renderClock(); renderDial(); renderNext(); renderMail(); renderDrafts(); renderPromised(); renderSystems(); renderTomorrow(); renderFoot();
+    renderClock(); renderDial(); renderNext(); renderMail(); renderDrafts(); renderPromised(); renderSystems(); renderWeek(); renderFoot();
   }
 
   function load() {

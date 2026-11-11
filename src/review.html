@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Suggested Replies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #e9ecf8; --ink-2: rgba(233,236,248,.72); --ink-3: rgba(233,236,248,.46); --ink-4: rgba(233,236,248,.18);
+  --line: rgba(233,236,248,.10); --ground: #070b18; --card: #0f1528; --field: #0a1020;
+  --green: #3dd68c; --coral: #ff7a6b; --amber: #f5b14c; --blue: #7aa2ff;
+  --serif: "DM Serif Display", Georgia, serif; --sans: Inter, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+main { max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; display: grid; gap: 20px; }
+h1 { font: 400 40px/1.1 var(--serif); margin: 0; }
+.lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { font: 600 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--ink-4); background: transparent; color: var(--ink-2); cursor: pointer; }
+.tab[aria-pressed="true"] { background: rgba(122,162,255,.14); border-color: rgba(122,162,255,.5); color: var(--ink); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.who { font-weight: 600; font-size: 16px; }
+.meta { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.meta .hi { color: var(--coral); }
+.body { padding: 16px 18px; display: grid; gap: 12px; }
+.ctx { font-size: 13.5px; color: var(--ink-2); border-left: 2px solid var(--ink-4); padding-left: 12px; }
+label { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+textarea { width: 100%; min-height: 160px; resize: vertical; font: 15px/1.55 var(--sans); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+textarea:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.subj { font-size: 13.5px; color: var(--ink-2); }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button.b { font: 600 13px var(--sans); border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--ink-4); background: transparent; color: var(--ink); }
+button.yes { background: var(--green); border-color: var(--green); color: #05240f; }
+button.no:hover { border-color: var(--coral); color: var(--coral); }
+button:disabled { opacity: .5; cursor: default; }
+.note { font-size: 13px; color: var(--ink-3); }
+.state { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--ink-4); color: var(--ink-2); }
+.state.placed { color: var(--green); border-color: rgba(61,214,140,.45); }
+.state.accepted { color: var(--blue); border-color: rgba(122,162,255,.45); }
+.state.failed { color: var(--coral); border-color: rgba(255,122,107,.45); }
+.empty { color: var(--ink-3); padding: 24px 0; }
+.err { color: var(--coral); }
+pre.done { margin: 0; white-space: pre-wrap; font: 14px/1.55 var(--sans); color: var(--ink-2); }
+@media (max-width: 520px) { h1 { font-size: 32px; } main { padding-top: 24px; } }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:8px">
+    <h1>Suggested replies</h1>
+    <p class="lede">Claude reads your mail and Slack every hour and suggests replies. Nothing reaches Gmail or Slack until you accept one: it's then saved as a <b>draft</b> within 5 minutes, ready for you to send yourself. Edit the text before accepting if you like.</p>
+  </header>
+  <div class="tabs" role="group" aria-label="Show">
+    <button class="tab" data-tab="pending" aria-pressed="true">To review</button>
+    <button class="tab" data-tab="done" aria-pressed="false">Accepted &amp; rejected</button>
+  </div>
+  <div id="list"><p class="empty">Loading…</p></div>
+</main>
+<script>
+(function () {
+  var KEY = new URLSearchParams(location.search).get("k") || "";
+  var tab = "pending", items = [], decided = {}, dirty = false;
+  var list = document.getElementById("list");
+  function h(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function when(iso) { return iso ? new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""; }
+  var LABEL = { accepted: "Accepted · saving draft", placed: "Draft saved", rejected: "Rejected", failed: "Couldn't save draft" };
+
+  function render() {
+    list.innerHTML = "";
+    var view = items.map(function (x) { return decided[x.id] ? Object.assign({}, x, decided[x.id]) : x; });
+    var shown = view.filter(function (x) { return tab === "pending" ? x.state === "pending" || x.state === "failed" : x.state !== "pending" && x.state !== "failed"; });
+    if (!shown.length) { list.appendChild(h("p", "empty", tab === "pending" ? "Nothing to review. You're up to date." : "Nothing here yet.")); return; }
+    var order = { high: 0, normal: 1, low: 2 };
+    shown.sort(function (a, b) { return (order[a.urgency] - order[b.urgency]) || (Date.parse(b.createdAt) - Date.parse(a.createdAt)); });
+    var wrap = h("div"); wrap.style.display = "grid"; wrap.style.gap = "14px";
+    shown.forEach(function (x) {
+      var card = h("article", "card");
+      var head = h("div", "head");
+      head.appendChild(h("div", "who", x.to + ": " + x.about));
+      var meta = h("div", "meta");
+      if (x.urgency === "high") meta.appendChild(h("span", "hi", "Urgent · "));
+      meta.appendChild(document.createTextNode((x.source === "slack" ? "Slack" : "Gmail") + (x.client ? " · " + x.client : "") + " · " + when(x.createdAt)));
+      head.appendChild(meta);
+      card.appendChild(head);
+      var body = h("div", "body");
+      if (x.replyingTo) body.appendChild(h("div", "ctx", x.replyingTo));
+      if (x.source === "gmail" && x.subject) body.appendChild(h("div", "subj", "Subject: " + x.subject));
+      if (x.state === "pending" || x.state === "failed") {
+        var id = "t-" + x.id;
+        var lab = h("label", null, "Reply"); lab.htmlFor = id;
+        var ta = h("textarea"); ta.id = id; ta.value = x.body || ""; ta.addEventListener("input", function () { dirty = true; });
+        body.appendChild(lab); body.appendChild(ta);
+        if (x.state === "failed") body.appendChild(h("div", "note err", "Last try failed: " + (x.error || "unknown error") + ". Accept again to retry."));
+        var acts = h("div", "acts");
+        var yes = h("button", "b yes", x.source === "slack" ? "Accept · save Slack draft" : "Accept · save Gmail draft");
+        var no = h("button", "b no", "Reject");
+        var msg = h("span", "note");
+        yes.type = no.type = "button";
+        yes.addEventListener("click", function () { send(x, "accept", ta.value, [yes, no], msg); });
+        no.addEventListener("click", function () { send(x, "reject", null, [yes, no], msg); });
+        acts.appendChild(yes); acts.appendChild(no); acts.appendChild(msg);
+        body.appendChild(acts);
+      } else {
+        var st = h("span", "state " + x.state, LABEL[x.state] || x.state);
+        body.appendChild(st);
+        body.appendChild(h("pre", "done", x.body || ""));
+      }
+      card.appendChild(body);
+      wrap.appendChild(card);
+    });
+    list.appendChild(wrap);
+  }
+
+  function send(x, action, text, btns, msg) {
+    btns.forEach(function (b) { b.disabled = true; });
+    msg.textContent = "Saving…"; msg.className = "note";
+    fetch("/api/drafts/decide?k=" + encodeURIComponent(KEY), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: x.id, action: action, body: text }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.message || "HTTP " + r.status); return j; }); })
+      .then(function (j) { decided[x.id] = { state: j.state, body: text || x.body }; dirty = false; render(); })
+      .catch(function (e) { btns.forEach(function (b) { b.disabled = false; }); msg.textContent = "Didn't save: " + e.message; msg.className = "note err"; });
+  }
+
+  function load() {
+    fetch("/api/data?k=" + encodeURIComponent(KEY), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) { items = d.drafts && d.drafts.ok ? d.drafts.items || [] : []; render(); })
+      .catch(function () { list.innerHTML = ""; list.appendChild(h("p", "empty err", "Couldn't load suggestions. Check the link includes ?k=.")); });
+  }
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.addEventListener("click", function () { tab = t.dataset.tab; document.querySelectorAll(".tab").forEach(function (u) { u.setAttribute("aria-pressed", String(u === t)); }); render(); });
+  });
+  load();
+  // Refresh every minute, but never while you are part-way through editing a reply.
+  setInterval(function () { if (!dirty && !document.querySelector("textarea:focus")) load(); }, 60000);
+})();
+</script>
+</body>
+</html>

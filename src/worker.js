@@ -7,7 +7,12 @@
 //   GET /oauth/callback   Google sends you back here; stores the refresh token in KV
 //   GET /connect-slack    start the one-time Slack sign-in (search, read-only)
 //   GET /oauth/slack      Slack sends you back here; stores the user token in KV
-//   PUT /api/drafts       the local drafter (local/draft-replies.sh) reports what it drafted
+//   GET /review           read, edit, accept or reject suggested replies
+//   PUT /api/drafts       the local drafter reports the replies it suggests (nothing is drafted yet)
+//   POST /api/drafts/decide   accept (optionally with edited text) or reject one suggestion
+//   GET /api/drafts/queue     accepted suggestions waiting to be saved as drafts (local placer)
+//   GET /api/drafts/refs      every message already suggested, so the drafter doesn't repeat itself
+//   POST /api/drafts/placed   the local placer reports which drafts it saved
 //
 // Secrets (Cloudflare → Workers → foundry-wallpaper → Settings → Variables and secrets):
 //   PAGE_KEY              the long random string in your wallpaper link
@@ -23,6 +28,7 @@
 // a source we couldn't read is reported as unavailable, never as "nothing there".
 
 import PAGE_HTML from "./page.html";
+import REVIEW_HTML from "./review.html";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -48,7 +54,12 @@ export default {
       if (url.pathname === "/api/data") return json(await loadAll(env, ctx, url.searchParams.get("fresh") === "1"));
       if (url.pathname === "/connect") return await startOauth(url, env);
       if (url.pathname === "/connect-slack") return await startSlack(url, env);
+      if (url.pathname === "/review") return html(REVIEW_HTML);
       if (url.pathname === "/api/drafts" && req.method === "PUT") return await putDrafts(req, env);
+      if (url.pathname === "/api/drafts/decide" && req.method === "POST") return await decideDraft(req, env);
+      if (url.pathname === "/api/drafts/queue") return json(await draftQueue(env));
+      if (url.pathname === "/api/drafts/refs") return json({ refs: (await loadDrafts(env)).items.map((d) => d.ref) });
+      if (url.pathname === "/api/drafts/placed" && req.method === "POST") return await draftsPlaced(req, env);
       return text("Not found", 404);
     } catch (err) {
       return json({ error: "Something went wrong", detail: String(err?.message ?? err).slice(0, 200) }, 500);
@@ -185,16 +196,16 @@ async function getJson(url, headers) {
 }
 
 async function readCalendar(token) {
-  // A window wide enough for "today" and "tomorrow" in any UK/EU/Asia time zone; the page
+  // Today through the next 7 days (the dial uses today; the week card uses all of it). The page
   // picks the days in local time.
   const now = Date.now();
   const u = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
   u.search = new URLSearchParams({
     timeMin: new Date(now - 20 * 3600_000).toISOString(),
-    timeMax: new Date(now + 52 * 3600_000).toISOString(),
+    timeMax: new Date(now + 8 * 86_400_000).toISOString(),
     singleEvents: "true",
     orderBy: "startTime",
-    maxResults: "60",
+    maxResults: "250",
   }).toString();
   const body = await getJson(u, { authorization: `Bearer ${token}` });
   const events = (body.items ?? [])
@@ -270,20 +281,71 @@ function foundryBase(env) {
   return (env.FOUNDRY_URL || "https://foundry.gitwork.co.uk").replace(/\/$/, "");
 }
 
+// Foundry's repeat rules (src/lib/commitments.ts there): one open commitment carries the next date;
+// completing it creates the following one. Here we only project forward to draw the week.
+function nextOccurrence(rule, from) {
+  const d = new Date(from);
+  const days = (n) => new Date(d.getTime() + n * 86_400_000);
+  const months = (n) => { const x = new Date(d); x.setUTCMonth(x.getUTCMonth() + n); return x; };
+  switch (rule) {
+    case "daily": return days(1);
+    case "weekdays": { let x = days(1); while (x.getUTCDay() === 0 || x.getUTCDay() === 6) x = new Date(x.getTime() + 86_400_000); return x; }
+    case "weekly": return days(7);
+    case "fortnightly": return days(14);
+    case "monthly": return months(1);
+    case "yearly": return months(12);
+  }
+  const m = /^every:(\d+):(day|week|month)$/.exec(rule ?? "");
+  if (!m) return null;
+  const n = Number(m[1]);
+  return m[2] === "day" ? days(n) : m[2] === "week" ? days(n * 7) : months(n);
+}
+
+// Every dated open commitment that falls in the next 7 days, with repeating ones expanded.
+// One that is already late shows once, on today, marked late.
+function weekSchedule(commitments, now) {
+  const start = new Date(now); start.setUTCHours(0, 0, 0, 0);
+  const end = start.getTime() + 8 * 86_400_000; // a day of slack either side; the page picks local days
+  const out = [];
+  for (const c of commitments) {
+    if (c.state !== "open" || c.someday) continue;
+    const anchor = c.dueAt ?? c.startAt;
+    if (!anchor) continue;
+    let at = new Date(anchor);
+    const base = { id: c.id, title: c.title, counterpart: c.counterpart ?? null, recurring: Boolean(c.recurrence), rule: c.recurrence ?? null };
+    if (at.getTime() < start.getTime() - 86_400_000) {
+      out.push({ ...base, at: at.toISOString(), late: true });
+      if (!c.recurrence) continue;
+      // carry a late repeating task forward to its upcoming dates too
+      for (let i = 0; i < 400 && at.getTime() < start.getTime(); i++) { const n = nextOccurrence(c.recurrence, at); if (!n) break; at = n; }
+    }
+    for (let i = 0; i < 40 && at.getTime() < end; i++) {
+      if (at.getTime() >= start.getTime() - 86_400_000) out.push({ ...base, at: at.toISOString(), late: at.getTime() < now - 60_000 && i === 0 && !base.recurring });
+      if (!c.recurrence) break;
+      const n = nextOccurrence(c.recurrence, at);
+      if (!n) break;
+      at = n;
+    }
+  }
+  return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(0, 80);
+}
+
 async function readCommitments(env) {
   const body = await getJson(`${foundryBase(env)}/api/backstage/commitments`, foundryHeaders(env));
+  const all = body.commitments ?? [];
   const now = Date.now();
-  const open = (body.commitments ?? []).filter(
+  const open = all.filter(
     (c) => c.state === "open" && !c.someday && !(c.snoozedUntil && Date.parse(c.snoozedUntil) > now),
   );
   const items = open
-    .map((c) => ({ id: c.id, title: c.title, dueAt: c.dueAt, counterpart: c.counterpart, priority: c.priority ?? 0 }))
+    .map((c) => ({ id: c.id, title: c.title, dueAt: c.dueAt, counterpart: c.counterpart, priority: c.priority ?? 0, recurring: Boolean(c.recurrence) }))
     .sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity) || b.priority - a.priority);
   return {
     open: open.length,
     overdue: items.filter((c) => c.dueAt && Date.parse(c.dueAt) < now).length,
-    suggested: (body.commitments ?? []).filter((c) => c.state === "suggested").length,
+    suggested: all.filter((c) => c.state === "suggested").length,
     items: items.slice(0, 6),
+    week: weekSchedule(open, now),
   };
 }
 
@@ -451,9 +513,42 @@ async function readSlack(env) {
   };
 }
 
-// ---------- drafts (written by the local drafter on your Mac) ----------
+// ---------- suggested replies ----------
+//
+// The drafter on the Mac only SUGGESTS replies. Nothing goes into Gmail or Slack until Dan accepts
+// one here; the local placer then saves accepted ones as drafts (never sends) and reports back.
+// States: pending → accepted → placed (or failed) | rejected.
 
 const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : null);
+const DRAFTS_KEY = "drafts:list";
+const KEEP_DAYS = { pending: 3, rejected: 7, placed: 7, failed: 7, accepted: 14 };
+
+async function loadDrafts(env) {
+  const v = await env.STORE.get(DRAFTS_KEY, "json");
+  return v ?? { generatedAt: null, skipped: 0, items: [] };
+}
+
+async function saveDrafts(env, v) {
+  const now = Date.now();
+  v.items = v.items.filter((d) => now - Date.parse(d.updatedAt ?? d.createdAt) < (KEEP_DAYS[d.state] ?? 7) * 86_400_000).slice(-60);
+  await env.STORE.put(DRAFTS_KEY, JSON.stringify(v));
+  await env.STORE.delete("data:cache");
+}
+
+function cleanSuggestion(d) {
+  const source = d?.source === "slack" ? "slack" : "gmail";
+  return {
+    source,
+    to: clip(d?.to, 80),
+    about: clip(d?.about, 160),
+    client: clip(d?.client, 60),
+    ref: clip(d?.ref, 160), // Gmail thread id, or Slack "<channel>:<ts>" of the message being answered
+    urgency: ["high", "normal", "low"].includes(d?.urgency) ? d.urgency : "normal",
+    subject: clip(d?.subject, 300),
+    body: clip(d?.body, 6000),
+    replyingTo: clip(d?.replyingTo, 400), // the line they're answering, so the review page has context
+  };
+}
 
 async function putDrafts(req, env) {
   let body;
@@ -462,26 +557,66 @@ async function putDrafts(req, env) {
   } catch {
     return text("Expected JSON", 400);
   }
-  const list = Array.isArray(body?.drafts) ? body.drafts.slice(0, 25) : null;
-  if (!list) return text('Expected { "drafts": [...] }', 400);
-  const drafts = list
-    .map((d) => ({
-      source: d?.source === "slack" ? "slack" : "gmail",
-      to: clip(d?.to, 80),
-      about: clip(d?.about, 160),
-      client: clip(d?.client, 60),
-      ref: clip(d?.ref, 120), // Gmail thread id or Slack channel:ts, to mark the inbox row
-      urgency: ["high", "normal", "low"].includes(d?.urgency) ? d.urgency : "normal",
-    }))
-    .filter((d) => d.to && d.about);
-  const skipped = Array.isArray(body?.skipped) ? body.skipped.length : 0;
-  await env.STORE.put("drafts:latest", JSON.stringify({ generatedAt: new Date().toISOString(), drafts, skipped }));
-  await env.STORE.delete("data:cache");
-  return json({ stored: drafts.length });
+  const incoming = Array.isArray(body?.suggestions) ? body.suggestions.slice(0, 25).map(cleanSuggestion).filter((d) => d.to && d.about && d.body && d.ref) : null;
+  if (!incoming) return text('Expected { "suggestions": [...] }', 400);
+  const v = await loadDrafts(env);
+  const now = new Date().toISOString();
+  let added = 0;
+  for (const s of incoming) {
+    const existing = v.items.find((d) => d.ref === s.ref);
+    if (existing && existing.state !== "pending") continue; // a decision stands; never resurrect it
+    if (existing) Object.assign(existing, s, { updatedAt: now });
+    else {
+      v.items.push({ id: crypto.randomUUID(), state: "pending", createdAt: now, updatedAt: now, ...s });
+      added++;
+    }
+  }
+  v.generatedAt = now;
+  v.skipped = Array.isArray(body?.skipped) ? body.skipped.length : 0;
+  await saveDrafts(env, v);
+  return json({ stored: incoming.length, added });
+}
+
+async function decideDraft(req, env) {
+  const { id, action, body } = await req.json().catch(() => ({}));
+  if (!["accept", "reject"].includes(action)) return text("action must be accept or reject", 400);
+  const v = await loadDrafts(env);
+  const d = v.items.find((x) => x.id === id);
+  if (!d) return text("Not found", 404);
+  if (d.state !== "pending" && !(d.state === "failed" && action === "accept")) return json({ ok: false, state: d.state, message: `Already ${d.state}` }, 409);
+  if (action === "accept" && typeof body === "string" && body.trim()) d.body = body.slice(0, 6000);
+  d.state = action === "accept" ? "accepted" : "rejected";
+  d.updatedAt = new Date().toISOString();
+  d.error = null;
+  await saveDrafts(env, v);
+  return json({ ok: true, state: d.state });
+}
+
+async function draftQueue(env) {
+  const v = await loadDrafts(env);
+  return { items: v.items.filter((d) => d.state === "accepted") };
+}
+
+async function draftsPlaced(req, env) {
+  const { results } = await req.json().catch(() => ({}));
+  if (!Array.isArray(results)) return text('Expected { "results": [...] }', 400);
+  const v = await loadDrafts(env);
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const r of results) {
+    const d = v.items.find((x) => x.id === r?.id);
+    if (!d || d.state !== "accepted") continue;
+    d.state = r.ok ? "placed" : "failed";
+    d.error = r.ok ? null : clip(r.error, 300) || "Couldn't save the draft";
+    d.updatedAt = now;
+    n++;
+  }
+  await saveDrafts(env, v);
+  return json({ updated: n });
 }
 
 async function readDrafts(env) {
-  const v = await env.STORE.get("drafts:latest", "json");
+  const v = await env.STORE.get(DRAFTS_KEY, "json");
   if (!v) throw new SourceError("not_set_up");
   return v;
 }
