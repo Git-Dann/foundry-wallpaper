@@ -26,8 +26,13 @@ For each message, before drafting:
 1. Read the whole thread (Gmail) or thread and nearby channel messages (Slack).
 2. Work out which client or lead it's about: match the sender's email domain, the Slack channel
    name, or names in the message against Foundry's clients (`list_clients`, `get_client`).
-3. Pull what's relevant from Foundry: open tasks for that client, recent meeting notes
-   (`find_meetings`), wiki pages, documents/proposals in progress.
+3. Pull what's relevant from Foundry, keeping every call small (a client's full task list can be
+   over 100,000 characters, which is too much to read):
+   - tasks: `list_tasks` with `client`, a `q` of one or two key words from the message, and
+     `limit: 15`. If that finds nothing, try `status: "DOING"` and then `status: "TODO"`, each
+     with `limit: 15`. Never call it without `limit`.
+   - meetings: `find_meetings` with `client`, a `q` if there's an obvious topic, and `limit: 5`.
+   - wiki pages and documents only when the message is about them.
 4. Check Dan's calendar if the message asks about availability or a meeting.
 
 Never invent a fact, date, price, scope or promise. If the reply needs something you couldn't
