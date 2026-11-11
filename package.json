@@ -6,7 +6,8 @@
     "build": "node --check src/worker.js",
     "preview": "node preview.mjs",
     "check": "node --check src/worker.js && wrangler deploy --dry-run --outdir .wrangler/check",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "preview:live": "node preview.mjs --live"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

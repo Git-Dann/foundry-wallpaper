@@ -92,12 +92,20 @@ its data every minute on its own; the reload is only a safety net.
 
 ## Changing it
 
-Push to `main` and Cloudflare deploys it (Workers Builds, connected to this repo). The design in
-`src/page.html` is bundled into the Worker, so a design change is just a push too.
+The look is all in `src/page.html`. The fast loop:
+
+1. `npm run preview:live` and open http://localhost:8788. It shows **your real data** (read from
+   the live wallpaper, using the link in `~/.foundry-drafter/env`), and **reloads itself a second
+   after you save** `src/page.html`. Put http://localhost:8788 in Plash while you work to see it
+   on the desktop. (`npm run preview` does the same with made-up data.)
+2. Change `src/page.html`, by hand or by asking Claude Code (`claude` in this folder).
+3. When it's right: `git add -A && git commit -m "…" && git push`. Cloudflare deploys `main` in
+   about a minute, and Plash picks it up on its next reload.
+
+Changes to `src/worker.js` (what data is read) only take effect once pushed, because the preview
+reads data from the live wallpaper.
 
 ```bash
-npm install
-npm run preview   # http://localhost:8788/?k=dev, with made-up data
 npm run check     # syntax check + a Wrangler dry run of exactly what will deploy
 ```
 

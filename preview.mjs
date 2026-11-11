@@ -1,6 +1,13 @@
-// Local preview with made-up data: node preview.mjs → http://localhost:8788/?k=dev
+// Local preview of src/page.html that reloads itself when you save.
+//
+//   npm run preview                    made-up data            → http://localhost:8788
+//   npm run preview:live               your real data (reads the live wallpaper's /api/data,
+//                                      using the link in ~/.foundry-drafter/env or $WALLPAPER)
+//
+// Nothing here is deployed; it only serves your local copy of the design.
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, watch, existsSync } from "node:fs";
+import { homedir } from "node:os";
 const at = (h, m, day = 0) => { const d = new Date(); d.setDate(d.getDate() + day); d.setHours(h, m, 0, 0); return d.toISOString(); };
 const ago = (mins) => new Date(Date.now() - mins * 60000).toISOString();
 const sample = () => ({
@@ -41,12 +48,53 @@ const sample = () => ({
     dots: [...Array(16).fill("up"), "flaky", "slow"], incidents: 0 },
 });
 const mode = process.env.MODE || "full";
-createServer((req, res) => {
+
+// --live: where to read real data from.
+function liveLink() {
+  if (process.env.WALLPAPER) return process.env.WALLPAPER.trim();
+  const env = `${homedir()}/.foundry-drafter/env`;
+  if (!existsSync(env)) return null;
+  const m = readFileSync(env, "utf8").match(/https:\/\/[^\s"]+\?k=[^\s"]+/);
+  return m ? m[0] : null;
+}
+const LIVE = process.argv.includes("--live") ? liveLink() : null;
+if (process.argv.includes("--live") && !LIVE) {
+  console.error("No wallpaper link found. Put it in ~/.foundry-drafter/env, or run: WALLPAPER='https://…/?k=…' npm run preview:live");
+  process.exit(1);
+}
+
+// Live reload: the page holds an event stream open and reloads when page.html changes.
+const listeners = new Set();
+watch(new URL("./src/page.html", import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
+const RELOADER = `<script>new EventSource("/__reload").onmessage=function(){location.reload()};</script>`;
+
+createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
+  if (u.pathname === "/__reload") {
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
+    res.write("\n");
+    listeners.add(res);
+    req.on("close", () => listeners.delete(res));
+    return;
+  }
   if (u.pathname === "/api/data") {
+    res.setHeader("content-type", "application/json");
+    if (LIVE) {
+      const base = LIVE.split("?")[0].replace(/\/$/, ""), key = LIVE.split("?k=")[1];
+      try {
+        const r = await fetch(`${base}/api/data?k=${encodeURIComponent(key)}`);
+        return res.end(await r.text());
+      } catch (e) {
+        res.statusCode = 502;
+        return res.end(JSON.stringify({ error: String(e) }));
+      }
+    }
     let d = sample();
     if (mode === "unconnected") d = { ...d, calendar: { ok: false, reason: "not_connected" }, mail: { ok: false, reason: "not_connected" }, commitments: { ok: false, reason: "not_configured" }, monitors: { ok: false, reason: "not_configured" }, slack: { ok: false, reason: "not_connected_slack" }, drafts: { ok: false, reason: "not_set_up" } };
-    res.setHeader("content-type", "application/json"); return res.end(JSON.stringify(d));
+    return res.end(JSON.stringify(d));
   }
-  res.setHeader("content-type", "text/html"); res.end(readFileSync(new URL("./src/page.html", import.meta.url)));
-}).listen(Number(process.env.PORT || 8788), () => console.log("preview on", process.env.PORT || 8788));
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.setHeader("cache-control", "no-store");
+  res.end(readFileSync(new URL("./src/page.html", import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
+}).listen(Number(process.env.PORT || 8788), () =>
+  console.log(`Preview on http://localhost:${process.env.PORT || 8788} with ${LIVE ? "your real data" : "made-up data"}. It reloads when you save src/page.html. Ctrl+C to stop.`));
