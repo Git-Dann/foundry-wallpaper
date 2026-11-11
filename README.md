@@ -9,28 +9,16 @@ and says so on the wallpaper. A source that can't be read never shows as "nothin
 
 ## Where it runs
 
-The same repo deploys to two Cloudflare accounts, each through its own Workers Builds connection
-to this repo's `main`:
-
-| Copy | Cloudflare account | Address |
-|---|---|---|
-| Gitwork | dan@gitwork.co.uk | `https://foundry-wallpaper.<gitwork subdomain>.workers.dev` |
-| Personal | Dan's personal account | `https://foundry-wallpaper.skcpcs48r9.workers.dev` |
-
-Each copy is fully separate: its own storage (Wrangler creates it on first deploy), its own
-secrets, its own Google sign-in and its own link. A push to `main` updates both. Below,
-`<address>` means the copy you're setting up.
-
+- Cloudflare: the `foundry-wallpaper` Worker in Dan's personal Cloudflare account, deployed by
+  Workers Builds on every push to `main`.
+- Address: `https://foundry-wallpaper.skcpcs48r9.workers.dev`. Below, `<address>` means this.
+- It reads Gitwork's data: Google is signed in as dan@gitwork.co.uk, and the Slack and Foundry
+  credentials are Gitwork's. Which Cloudflare account hosts it doesn't change what it can read.
 - The wallpaper link is `<address>/?k=<PAGE_KEY>`. Without the key every route answers 404.
 - Options: `&discreet=1` blurs names and subjects (for screen sharing); `&still=1` stops the
   background moving.
-
-**Setting up a copy** means doing the steps below once in that account. Shortcuts for the second one:
-- **Google:** reuse the same OAuth client and add the second copy's `<address>/oauth/callback` as
-  another authorised redirect URI. Then open that copy's `<address>/connect?k=…`.
-- **Slack:** the same `SLACK_USER_TOKEN` works in both.
-- **Foundry:** create a separate API key per copy, so either can be revoked alone.
-- **PAGE_KEY:** use a different one per copy (`openssl rand -base64 24 | tr '+/' '-_' | tr -d =`).
+- Secrets must be type **Secret**, never Variable: a deploy resets plain variables to what's in
+  `wrangler.toml`, and a Variable's value is shown to anyone with dashboard access.
 
 ## Set-up
 
@@ -83,8 +71,8 @@ only "who" and "about" reach the wallpaper.
 
 1. Install Claude Code (`npm i -g @anthropic-ai/claude-code`), sign in, and `brew install jq`.
 2. Make sure your connectors show up: `claude mcp list`.
-3. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste each wallpaper
-   link (with its `?k=`) under `WALLPAPERS`, one per line. Drafts are reported to every one.
+3. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste your wallpaper
+   link (with its `?k=`) under `WALLPAPERS`. (More than one link, one per line, also works.)
 4. `./local/draft-replies.sh --check` and fix the four server names in that file if they differ
    from what `claude mcp list` shows.
 5. `./local/draft-replies.sh` to run it now. Check the drafts in Gmail and Slack before trusting it.
