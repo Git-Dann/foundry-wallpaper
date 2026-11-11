@@ -7,13 +7,30 @@ you've made in Foundry, and every client's uptime.
 It runs on Cloudflare Workers and never writes to Google or Foundry. Each source fails on its own
 and says so on the wallpaper. A source that can't be read never shows as "nothing there".
 
-## Where it is
+## Where it runs
 
-- Worker: `foundry-wallpaper` on Cloudflare, at `https://foundry-wallpaper.skcpcs48r9.workers.dev`.
-- The wallpaper link is `https://foundry-wallpaper.skcpcs48r9.workers.dev/?k=<PAGE_KEY>`. Without
-  the key every route answers 404.
+The same repo deploys to two Cloudflare accounts, each through its own Workers Builds connection
+to this repo's `main`:
+
+| Copy | Cloudflare account | Address |
+|---|---|---|
+| Gitwork | dan@gitwork.co.uk | `https://foundry-wallpaper.<gitwork subdomain>.workers.dev` |
+| Personal | Dan's personal account | `https://foundry-wallpaper.skcpcs48r9.workers.dev` |
+
+Each copy is fully separate: its own storage (Wrangler creates it on first deploy), its own
+secrets, its own Google sign-in and its own link. A push to `main` updates both. Below,
+`<address>` means the copy you're setting up.
+
+- The wallpaper link is `<address>/?k=<PAGE_KEY>`. Without the key every route answers 404.
 - Options: `&discreet=1` blurs names and subjects (for screen sharing); `&still=1` stops the
   background moving.
+
+**Setting up a copy** means doing the steps below once in that account. Shortcuts for the second one:
+- **Google:** reuse the same OAuth client and add the second copy's `<address>/oauth/callback` as
+  another authorised redirect URI. Then open that copy's `<address>/connect?k=…`.
+- **Slack:** the same `SLACK_USER_TOKEN` works in both.
+- **Foundry:** create a separate API key per copy, so either can be revoked alone.
+- **PAGE_KEY:** use a different one per copy (`openssl rand -base64 24 | tr '+/' '-_' | tr -d =`).
 
 ## Set-up
 
@@ -23,11 +40,11 @@ and says so on the wallpaper. A source that can't be read never shows as "nothin
    **Google Calendar API** and the **Gmail API**.
 2. **OAuth consent screen**: user type **Internal**. Internal apps need no Google review.
 3. **Credentials → Create OAuth client ID → Web application.**
-   - Authorised redirect URI: `https://foundry-wallpaper.skcpcs48r9.workers.dev/oauth/callback`
+   - Authorised redirect URI: `<address>/oauth/callback`
 4. Add the client ID and secret to the Worker as secrets, `GOOGLE_CLIENT_ID` and
    `GOOGLE_CLIENT_SECRET`. Cloudflare → Workers & Pages → foundry-wallpaper → Settings →
    Variables and secrets → Add → type Secret.
-5. Open `https://foundry-wallpaper.skcpcs48r9.workers.dev/connect?k=<PAGE_KEY>` and sign in with
+5. Open `<address>/connect?k=<PAGE_KEY>` and sign in with
    your Gitwork account. The refresh token is kept in the Worker's KV store, never in the page.
 
 To disconnect Google, remove the app at myaccount.google.com → Security → Third-party access.
@@ -66,7 +83,8 @@ only "who" and "about" reach the wallpaper.
 
 1. Install Claude Code (`npm i -g @anthropic-ai/claude-code`), sign in, and `brew install jq`.
 2. Make sure your connectors show up: `claude mcp list`.
-3. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: add your `PAGE_KEY`.
+3. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste each wallpaper
+   link (with its `?k=`) under `WALLPAPERS`, one per line. Drafts are reported to every one.
 4. `./local/draft-replies.sh --check` and fix the four server names in that file if they differ
    from what `claude mcp list` shows.
 5. `./local/draft-replies.sh` to run it now. Check the drafts in Gmail and Slack before trusting it.
