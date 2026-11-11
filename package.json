@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "preview": "node preview.mjs",
-    "deploy": "npx wrangler@4 deploy",
-    "publish-page": "curl -fsS -X PUT --data-binary @src/page.html \"$WALLPAPER_URL/admin/page?k=$PAGE_KEY\""
+    "check": "node --check src/worker.js && wrangler deploy --dry-run --outdir .wrangler/check",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
   }
 }

@@ -41,18 +41,19 @@ The key acts as you, read-only here. Archiving you in Foundry stops it.
 
 ### 3. Slack (mentions and DMs, read-only)
 
-1. api.slack.com/apps → **Create New App → From scratch**, in the Gitwork workspace. Name it
-   "Foundry Wallpaper".
-2. **OAuth & Permissions:**
-   - Redirect URL: `https://foundry-wallpaper.skcpcs48r9.workers.dev/oauth/slack`
-   - **User Token Scopes** (not Bot): `search:read`, `users:read`
-3. **Basic Information:** copy the Client ID and Client Secret into the Worker as secrets
-   `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`.
-4. Open `https://foundry-wallpaper.skcpcs48r9.workers.dev/connect-slack?k=<PAGE_KEY>` and allow it.
+1. In your Slack app (api.slack.com/apps → Foundry Wallpaper) → **OAuth & Permissions** →
+   **User Token Scopes** (not Bot Token Scopes): add `search:read` and `users:read`.
+2. Click **Reinstall to Workspace** at the top of that page. Slack only grants new scopes on a
+   reinstall.
+3. Copy the **User OAuth Token** (starts `xoxp-`) into the Worker as the secret `SLACK_USER_TOKEN`.
+   Don't paste it anywhere else. The bot and app tokens aren't used.
 
 It searches the last 3 days for messages that mention you and DMs sent to you (`to:me`), the
 same searches you'd type in Slack. Not yet checked against a real workspace: if DMs never show,
 `to:me` isn't honoured by the API and the DM half needs switching to `conversations.list`.
+
+(There's also a sign-in route, `/connect-slack`, for an app set up with `SLACK_CLIENT_ID`,
+`SLACK_CLIENT_SECRET` and the redirect URL `…/oauth/slack`. You only need one of the two.)
 
 ### 4. Claude drafts your replies (runs on your Mac)
 
@@ -83,17 +84,18 @@ Edit `local/prompt.md` to change how it writes or what it skips.
 Plash → Add Website → paste the wallpaper link. Set reload to every 5 minutes. The page refreshes
 its data every minute on its own; the reload is only a safety net.
 
-## Changing the design
+## Changing it
 
-The design lives in `src/page.html` and is stored in KV, so changing it needs no redeploy:
+Push to `main` and Cloudflare deploys it (Workers Builds, connected to this repo). The design in
+`src/page.html` is bundled into the Worker, so a design change is just a push too.
 
 ```bash
+npm install
 npm run preview   # http://localhost:8788/?k=dev, with made-up data
-WALLPAPER_URL=https://foundry-wallpaper.skcpcs48r9.workers.dev PAGE_KEY=… npm run publish-page
+npm run check     # syntax check + a Wrangler dry run of exactly what will deploy
 ```
 
-Changing `src/worker.js` needs a deploy: `npm run deploy` (Wrangler, logged in to the same
-Cloudflare account).
+Secrets live only in Cloudflare (Settings → Variables and secrets); a deploy keeps them.
 
 ## What it reads
 

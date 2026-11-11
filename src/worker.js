@@ -5,7 +5,6 @@
 //   GET /api/data         calendar, Gmail, Foundry commitments and monitors, as JSON
 //   GET /connect          start the one-time Google sign-in (calendar + Gmail, read-only)
 //   GET /oauth/callback   Google sends you back here; stores the refresh token in KV
-//   PUT /admin/page       replace the wallpaper design (body = page.html); `npm run publish-page`
 //   GET /connect-slack    start the one-time Slack sign-in (search, read-only)
 //   GET /oauth/slack      Slack sends you back here; stores the user token in KV
 //   PUT /api/drafts       the local drafter (local/draft-replies.sh) reports what it drafted
@@ -15,14 +14,15 @@
 //   GOOGLE_CLIENT_ID      a Google OAuth "Web application" client
 //   GOOGLE_CLIENT_SECRET
 //   FOUNDRY_API_KEY       optional; Foundry → Settings → Developer → API keys
-//   SLACK_CLIENT_ID       a Slack app with user scopes search:read and users:read
-//   SLACK_CLIENT_SECRET
+//   SLACK_USER_TOKEN      the xoxp- User token of a Slack app with user scopes search:read, users:read
+//   (or SLACK_CLIENT_ID + SLACK_CLIENT_SECRET to sign in through /connect-slack instead)
 // Vars: FOUNDRY_URL (default https://foundry.gitwork.co.uk)
 // KV binding: STORE
 //
 // Nothing here ever writes to Google or Foundry. Each source fails on its own and says so:
 // a source we couldn't read is reported as unavailable, never as "nothing there".
 
+import PAGE_HTML from "./page.html";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -44,8 +44,7 @@ export default {
       if (url.pathname === "/oauth/slack") return await slackCallback(url, env);
       if (!keyOk(url.searchParams.get("k"), env.PAGE_KEY)) return text("Not found", 404);
 
-      if (url.pathname === "/admin/page" && req.method === "PUT") return await putPage(req, env);
-      if (url.pathname === "/") return html((await env.STORE.get("page:html")) ?? "<p style=\"font:16px system-ui\">No design uploaded yet. Run npm run publish-page.</p>");
+      if (url.pathname === "/") return html(PAGE_HTML);
       if (url.pathname === "/api/data") return json(await loadAll(env, ctx, url.searchParams.get("fresh") === "1"));
       if (url.pathname === "/connect") return await startOauth(url, env);
       if (url.pathname === "/connect-slack") return await startSlack(url, env);
@@ -56,13 +55,6 @@ export default {
     }
   },
 };
-
-async function putPage(req, env) {
-  const body = await req.text();
-  if (!body.includes("<html") || body.length > 300_000) return text("Expected page.html under 300KB", 400);
-  await env.STORE.put("page:html", body);
-  return text(`Design updated (${body.length} chars)`);
-}
 
 // ---------- auth ----------
 
@@ -404,10 +396,23 @@ async function plainSlack(env, token, raw) {
   return s.length > 180 ? s.slice(0, 177) + "…" : s;
 }
 
-async function readSlack(env) {
+// A User token pasted in as a secret wins; otherwise the one from /connect-slack.
+async function slackIdentity(env) {
+  if (env.SLACK_USER_TOKEN) {
+    let me = await env.STORE.get("slack:user:env");
+    if (!me) {
+      me = (await slackApi(env.SLACK_USER_TOKEN, "auth.test", {})).user_id;
+      await env.STORE.put("slack:user:env", me, { expirationTtl: 86_400 });
+    }
+    return { token: env.SLACK_USER_TOKEN, me };
+  }
   const token = await env.STORE.get("slack:token");
   if (!token) throw new SourceError("not_connected_slack");
-  const me = await env.STORE.get("slack:user");
+  return { token, me: await env.STORE.get("slack:user") };
+}
+
+async function readSlack(env) {
+  const { token, me } = await slackIdentity(env);
   const since = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
   // Slack's search, as you'd type it in the app: anything mentioning you, and DMs sent to you.
   const [mentions, dms] = await Promise.all([

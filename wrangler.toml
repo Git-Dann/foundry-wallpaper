@@ -9,3 +9,9 @@ FOUNDRY_URL = "https://foundry.gitwork.co.uk"
 [[kv_namespaces]]
 binding = "STORE"
 id = "7fa29fb3ad1d4b2e842c6676b70ee93c"
+
+# The wallpaper design is bundled into the Worker as text.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
