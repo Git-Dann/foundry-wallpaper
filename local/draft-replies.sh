@@ -10,7 +10,7 @@
 #   ./draft-replies.sh --install  run it hourly on weekdays, 07:00–19:00 (launchd)
 #
 # Config lives in ~/.foundry-drafter/env (created on first run):
-#   WALLPAPER_URL, PAGE_KEY            where to report drafts
+#   WALLPAPERS                          where to report drafts: one "<url>?k=<key>" per line
 #   GMAIL_MCP, SLACK_MCP, FOUNDRY_MCP, CALENDAR_MCP   the MCP server names `claude mcp list` shows
 set -euo pipefail
 
@@ -24,9 +24,10 @@ touch "$DONE_FILE"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'EOF'
-# Where the wallpaper lives, and its key (the k= part of your wallpaper link)
-WALLPAPER_URL="https://foundry-wallpaper.skcpcs48r9.workers.dev"
-PAGE_KEY=""
+# Every wallpaper to report drafts to: paste each full wallpaper link, one per line.
+# (One for the Gitwork Cloudflare account, one for your personal one, or just one.)
+WALLPAPERS="
+"
 # MCP server names as `claude mcp list` shows them. claude.ai connectors usually appear
 # as claude_ai_<Name>; check with ./draft-replies.sh --check and fix these if they differ.
 GMAIL_MCP="claude_ai_Gmail"
@@ -37,7 +38,7 @@ CALENDAR_MCP="claude_ai_Google_Calendar"
 MODEL="sonnet"
 EOF
   chmod 600 "$ENV_FILE"
-  echo "Created $ENV_FILE. Add your PAGE_KEY, check the server names, then run again."
+  echo "Created $ENV_FILE. Paste your wallpaper link(s), check the server names, then run again."
   exit 1
 fi
 # shellcheck disable=SC1090
@@ -80,7 +81,8 @@ case "${1:-}" in
     if (( dow > 5 || 10#$hr < 7 || 10#$hr >= 19 )); then exit 0; fi ;;
 esac
 
-[[ -n "${PAGE_KEY:-}" ]] || { echo "PAGE_KEY is empty in $ENV_FILE"; exit 1; }
+TARGETS=(); while read -r line; do [[ "$line" == https://*"?k="* ]] && TARGETS+=("$line"); done <<<"${WALLPAPERS:-}"
+(( ${#TARGETS[@]} )) || { echo "Add at least one wallpaper link (https://…?k=…) to WALLPAPERS in $ENV_FILE"; exit 1; }
 command -v claude >/dev/null || { echo "Claude Code isn't installed (npm i -g @anthropic-ai/claude-code)"; exit 1; }
 command -v jq >/dev/null || { echo "jq is needed (brew install jq)"; exit 1; }
 
@@ -104,7 +106,11 @@ REPORT="$(jq -c '.structured_output // (.result | fromjson? ) // empty' <<<"$RES
 [[ -n "$REPORT" ]] || { echo "[$(date '+%F %T')] no report in output" >> "$LOG"; echo "$RESULT" >> "$LOG"; exit 1; }
 
 jq -r '.drafts[]?.ref // empty' <<<"$REPORT" >> "$DONE_FILE"
-curl -fsS -X PUT -H 'content-type: application/json' --data "$REPORT" \
-  "$WALLPAPER_URL/api/drafts?k=$PAGE_KEY" >> "$LOG"
+for link in "${TARGETS[@]}"; do
+  base="${link%%\?*}"; key="${link#*\?k=}"; base="${base%/}"
+  # One wallpaper being down mustn't lose the report for the others.
+  curl -fsS -X PUT -H 'content-type: application/json' --data "$REPORT" "$base/api/drafts?k=$key" >> "$LOG" \
+    || echo " [$(date '+%F %T')] couldn't reach $base" >> "$LOG"
+done
 echo " [$(date '+%F %T')] $(jq '.drafts | length' <<<"$REPORT") drafts reported" >> "$LOG"
 jq '.' <<<"$REPORT"
