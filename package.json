@@ -1,0 +1,10 @@
+{
+  "name": "foundry-wallpaper",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node preview.mjs",
+    "deploy": "npx wrangler@4 deploy",
+    "publish-page": "curl -fsS -X PUT --data-binary @src/page.html \"$WALLPAPER_URL/admin/page?k=$PAGE_KEY\""
+  }
+}

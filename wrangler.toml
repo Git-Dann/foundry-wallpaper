@@ -1,0 +1,11 @@
+name = "foundry-wallpaper"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+FOUNDRY_URL = "https://foundry.gitwork.co.uk"
+
+[[kv_namespaces]]
+binding = "STORE"
+id = "7fa29fb3ad1d4b2e842c6676b70ee93c"
