@@ -29,7 +29,7 @@ const sample = () => ({
     { from: "Waqar", domain: "gitwork.co.uk", subject: "Fellas Android build ready for review", at: ago(180) },
     { from: "Coachman", domain: "coachman.co.uk", subject: "Caravan configurator: phase 2 scope", at: ago(400) },
   ] },
-  commitments: { ok: true, open: 7, overdue: 1, suggested: 2, week: [
+  commitments: { ok: true, open: 7, overdue: 1, suggested: 2, week: { items: [
     { id: "w0", title: "Send Valu the revised proposal", at: ago(60 * 20), late: true, recurring: false },
     { id: "w1", title: "Timesheets", at: at(17, 0), recurring: true, rule: "weekdays" },
     { id: "w2", title: "Timesheets", at: at(17, 0, 1), recurring: true, rule: "weekdays" },
@@ -39,7 +39,7 @@ const sample = () => ({
     { id: "w6", title: "Review Coachman phase 2", at: at(12, 0, 5), recurring: false },
     { id: "w7", title: "Timesheets", at: at(17, 0, 5), recurring: true, rule: "weekdays" },
     { id: "w8", title: "Invoices", at: at(9, 0, 6), recurring: true, rule: "monthly" },
-  ], items: [
+  ] }, items: [
     { title: "Send Valu the revised proposal", dueAt: ago(60 * 20), counterpart: "Valu" },
     { title: "Reply to Luke on the course feed outage", dueAt: at(17, 0), counterpart: "Big Wedge" },
     { title: "Review Coachman phase 2 estimate", dueAt: at(12, 0, 2), counterpart: "Coachman" },
@@ -75,7 +75,7 @@ if (process.argv.includes("--live") && !LIVE) {
 
 // Live reload: the page holds an event stream open and reloads when page.html changes.
 const listeners = new Set();
-for (const f of ["./src/page.html", "./src/review.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
+for (const f of ["./src/page.html", "./src/review.html", "./src/controller.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
 const RELOADER = `<script>new EventSource("/__reload").onmessage=function(){location.reload()};</script>`;
 
 createServer(async (req, res) => {
@@ -105,7 +105,9 @@ createServer(async (req, res) => {
   }
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.setHeader("cache-control", "no-store");
-  const file = u.pathname === "/review" ? "./src/review.html" : "./src/page.html";
+  if (u.pathname === "/api/stamp") { res.setHeader("content-type", "application/json"); return res.end('{"stamp":"1"}'); }
+  if (u.pathname.startsWith("/api/tasks")) { res.setHeader("content-type", "application/json"); return res.end('{"ok":true,"repeatStored":"wallpaper"}'); }
+  const file = u.pathname === "/review" ? "./src/review.html" : u.pathname === "/controller" ? "./src/controller.html" : "./src/page.html";
   if (u.pathname === "/api/drafts/decide") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ ok: true, state: "accepted" })); }
   res.end(readFileSync(new URL(file, import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
 }).listen(Number(process.env.PORT || 8788), () =>

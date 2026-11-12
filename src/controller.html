@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Week Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #e9ecf8; --ink-2: rgba(233,236,248,.72); --ink-3: rgba(233,236,248,.46); --ink-4: rgba(233,236,248,.18);
+  --line: rgba(233,236,248,.10); --ground: #070b18; --card: #0f1528; --field: #0a1020;
+  --green: #3dd68c; --coral: #ff7a6b; --violet: #c4b5fd; --blue: #7aa2ff;
+  --serif: "DM Serif Display", Georgia, serif; --sans: Inter, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; display: grid; gap: 18px; }
+h1 { font: 400 36px/1.1 var(--serif); margin: 0; }
+h2 { font: 500 11px var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3); margin: 0; }
+.lede { color: var(--ink-2); margin: 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+label { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 6px; }
+input, select, textarea { width: 100%; font: 16px var(--sans); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+textarea { min-height: 70px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.days { display: flex; flex-wrap: wrap; gap: 6px; }
+.day { font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ink-4); background: transparent; color: var(--ink-2); cursor: pointer; }
+.day[aria-pressed="true"] { background: rgba(122,162,255,.16); border-color: rgba(122,162,255,.6); color: var(--ink); }
+.day.past { opacity: .5; }
+.acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button.go { font: 600 14px var(--sans); border-radius: 8px; padding: 10px 18px; border: 0; background: var(--green); color: #05240f; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.msg { font-size: 13.5px; color: var(--ink-2); }
+.msg.err { color: var(--coral); }
+.msg.ok { color: var(--green); }
+.list { display: grid; gap: 2px; }
+.item { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.item .t { font-size: 14.5px; }
+.item .m { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+.item .m .rec { color: var(--violet); }
+.item .m .late { color: var(--coral); }
+button.done { flex: none; font: 600 12px var(--sans); border-radius: 6px; padding: 6px 12px; border: 1px solid rgba(61,214,140,.5); background: rgba(61,214,140,.08); color: var(--green); cursor: pointer; }
+.empty { color: var(--ink-3); }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:6px">
+    <h1>Your week</h1>
+    <p class="lede">Add a task or tick one off. It goes into Foundry Commitments and shows on your wallpaper within about 15 seconds, without reloading Plash.</p>
+  </header>
+
+  <form class="card" id="add" autocomplete="off">
+    <h2>Add a task</h2>
+    <div>
+      <label for="title">What</label>
+      <input id="title" name="title" required maxlength="200" placeholder="Send the GAIA weekly update email">
+    </div>
+    <div>
+      <label>Day</label>
+      <div class="days" id="days" role="group" aria-label="Day"></div>
+      <div style="margin-top:8px"><input id="date" type="date" aria-label="Or pick a date"></div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="time">Time (optional)</label>
+        <input id="time" type="time" step="300">
+      </div>
+      <div>
+        <label for="repeat">Repeats</label>
+        <select id="repeat">
+          <option value="">Doesn't repeat</option>
+          <option value="weekdays">Every weekday</option>
+          <option value="weekly">Every week</option>
+          <option value="fortnightly">Every 2 weeks</option>
+          <option value="monthly">Every month</option>
+          <option value="daily">Every day</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label for="who">For (optional)</label>
+      <input id="who" maxlength="80" placeholder="GAIA, Campfire, a client or a person">
+    </div>
+    <div>
+      <label for="notes">Notes (optional)</label>
+      <textarea id="notes" maxlength="2000" placeholder="Collect this week's progress from the devs first"></textarea>
+    </div>
+    <div class="acts">
+      <button class="go" type="submit" id="save">Add to my week</button>
+      <span class="msg" id="msg" role="status"></span>
+    </div>
+  </form>
+
+  <section class="card">
+    <h2>This week</h2>
+    <div class="list" id="list"><p class="empty">Loading…</p></div>
+  </section>
+</main>
+<script>
+(function () {
+  var KEY = new URLSearchParams(location.search).get("k") || "";
+  var q = function (id) { return document.getElementById(id); };
+  function h(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
+  // Mon–Fri of this week (next week at the weekend), as chips. Today is picked to start with.
+  var mon = new Date(); mon.setHours(0, 0, 0, 0);
+  var dow = mon.getDay(); mon.setDate(mon.getDate() + (dow === 0 ? 1 : dow === 6 ? 2 : 1 - dow));
+  var today = iso(new Date());
+  var chosen = null;
+  var days = q("days"), date = q("date");
+  for (var i = 0; i < 5; i++) {
+    var d = new Date(mon.getTime()); d.setDate(mon.getDate() + i);
+    var b = h("button", "day" + (iso(d) < today ? " past" : ""), d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" }));
+    b.type = "button"; b.dataset.day = iso(d); b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", function (e) { pick(e.currentTarget.dataset.day); });
+    days.appendChild(b);
+  }
+  function pick(day) {
+    chosen = day; date.value = day;
+    days.querySelectorAll(".day").forEach(function (x) { x.setAttribute("aria-pressed", String(x.dataset.day === day)); });
+  }
+  date.addEventListener("change", function () { pick(date.value || null); });
+  pick(iso(mon) > today ? iso(mon) : today);
+
+  q("add").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var msg = q("msg"), save = q("save");
+    if (!chosen) { msg.textContent = "Pick a day."; msg.className = "msg err"; return; }
+    save.disabled = true; msg.textContent = "Adding…"; msg.className = "msg";
+    fetch("/api/tasks?k=" + encodeURIComponent(KEY), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: q("title").value, day: chosen, time: q("time").value || null, repeat: q("repeat").value || null, who: q("who").value, notes: q("notes").value }),
+    })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function (j) {
+        var note = j.repeatStored === "wallpaper" ? " The repeat is kept by the wallpaper for now (Foundry can't store repeats until its next deploy)." : "";
+        msg.textContent = "Added. It's on your wallpaper within 15 seconds." + note; msg.className = "msg ok";
+        q("title").value = ""; q("notes").value = ""; q("who").value = ""; q("time").value = ""; q("repeat").value = "";
+        save.disabled = false; setTimeout(load, 1500);
+      })
+      .catch(function (err) { msg.textContent = "Didn't add: " + err.message; msg.className = "msg err"; save.disabled = false; });
+  });
+
+  var RULE = { daily: "every day", weekdays: "every weekday", weekly: "weekly", fortnightly: "every 2 weeks", monthly: "monthly", yearly: "yearly" };
+  function load() {
+    fetch("/api/data?k=" + encodeURIComponent(KEY), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        var list = q("list"); list.innerHTML = "";
+        var c = d.commitments;
+        if (!c || !c.ok) { list.appendChild(h("p", "empty", "Couldn't read Foundry just now.")); return; }
+        var items = Array.isArray(c.week) ? c.week : (c.week && c.week.items) || [];
+        // One row per task: its next date this week (or "late").
+        var seen = {}, rows = [];
+        items.forEach(function (t) { if (!seen[t.id] && (t.late || Date.parse(t.at) >= Date.now() - 12 * 3600000)) { seen[t.id] = true; rows.push(t); } });
+        if (!rows.length) { list.appendChild(h("p", "empty", "Nothing booked in for this week yet.")); return; }
+        rows.forEach(function (t) {
+          var row = h("div", "item");
+          var tx = h("div");
+          tx.appendChild(h("div", "t", t.title));
+          var m = h("div", "m");
+          m.appendChild(document.createTextNode(new Date(t.at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + (t.counterpart ? " · " + t.counterpart : "")));
+          if (t.recurring) { m.appendChild(document.createTextNode(" · ")); m.appendChild(h("span", "rec", "↻ " + (RULE[t.rule] || t.rule))); }
+          if (t.late) { m.appendChild(document.createTextNode(" · ")); m.appendChild(h("span", "late", "late")); }
+          tx.appendChild(m);
+          row.appendChild(tx);
+          var done = h("button", "done", t.recurring ? "Done this time" : "Done");
+          done.type = "button";
+          done.addEventListener("click", function () {
+            done.disabled = true; done.textContent = "Saving…";
+            fetch("/api/tasks/done?k=" + encodeURIComponent(KEY), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: t.id }) })
+              .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+              .then(function (j) { done.textContent = j.next ? "Next: " + new Date(j.next).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "Done ✓"; setTimeout(load, 2500); })
+              .catch(function (err) { done.disabled = false; done.textContent = "Try again"; done.title = err.message; });
+          });
+          row.appendChild(done);
+          list.appendChild(row);
+        });
+      })
+      .catch(function () { q("list").innerHTML = '<p class="empty">Couldn\'t load. Check the link includes ?k=.</p>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

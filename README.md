@@ -87,11 +87,18 @@ Set-up:
 Log: `~/.foundry-drafter/drafter.log`. Edit `local/prompt.md` (suggestions) or `local/place.md`
 (saving drafts) to change how they work.
 
-### Recurring tasks
+### Your week
 
-The **Next 7 days** strip shows every dated, open commitment from Foundry → Backstage →
-Commitments, with repeating ones (↻) expanded onto each day they fall in the week. Add a
-repeating task there (or ask Claude to) and it appears within a minute.
+**This week** (under the dial) is Monday to Friday, or next week at the weekend: meetings per day,
+plus every dated open commitment from Foundry → Backstage → Commitments, with repeating ones (↻)
+on each day they fall.
+
+**Add or tick off tasks** at `<address>/controller?k=…` (the wallpaper's **+ Add** link opens it).
+Changes show on the wallpaper within about 15 seconds; it checks `/api/stamp` for changes.
+
+While production Foundry can't store repeats (it's behind on deploys), a repeat it rejects is kept
+by the wallpaper in KV (`repeat:overlay`), and "Done this time" moves the task to its next date.
+Once Foundry stores repeats, new ones go there instead.
 
 ### 5. Plash
 

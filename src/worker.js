@@ -8,6 +8,9 @@
 //   GET /connect-slack    start the one-time Slack sign-in (search, read-only)
 //   GET /oauth/slack      Slack sends you back here; stores the user token in KV
 //   GET /review           read, edit, accept or reject suggested replies
+//   GET /controller       add a task to your week, or tick one off (writes to Foundry Commitments)
+//   POST /api/tasks       add one   ·   POST /api/tasks/done   tick one off
+//   GET /api/stamp        changes whenever something is written, so pages refresh at once
 //   PUT /api/drafts       the local drafter reports the replies it suggests (nothing is drafted yet)
 //   POST /api/drafts/decide   accept (optionally with edited text) or reject one suggestion
 //   GET /api/drafts/queue     accepted suggestions waiting to be saved as drafts (local placer)
@@ -29,6 +32,7 @@
 
 import PAGE_HTML from "./page.html";
 import REVIEW_HTML from "./review.html";
+import CONTROLLER_HTML from "./controller.html";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -55,6 +59,10 @@ export default {
       if (url.pathname === "/connect") return await startOauth(url, env);
       if (url.pathname === "/connect-slack") return await startSlack(url, env);
       if (url.pathname === "/review") return html(REVIEW_HTML);
+      if (url.pathname === "/controller") return html(CONTROLLER_HTML);
+      if (url.pathname === "/api/stamp") return json({ stamp: (await env.STORE.get("stamp")) ?? "0" });
+      if (url.pathname === "/api/tasks" && req.method === "POST") return await addTask(req, env);
+      if (url.pathname === "/api/tasks/done" && req.method === "POST") return await doneTask(req, env);
       if (url.pathname === "/api/drafts" && req.method === "PUT") return await putDrafts(req, env);
       if (url.pathname === "/api/drafts/decide" && req.method === "POST") return await decideDraft(req, env);
       if (url.pathname === "/api/drafts/queue") return json(await draftQueue(env));
@@ -201,7 +209,7 @@ async function readCalendar(token) {
   const now = Date.now();
   const u = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
   u.search = new URLSearchParams({
-    timeMin: new Date(now - 20 * 3600_000).toISOString(),
+    timeMin: new Date(now - 5 * 86_400_000).toISOString(), // back to this week's Monday
     timeMax: new Date(now + 8 * 86_400_000).toISOString(),
     singleEvents: "true",
     orderBy: "startTime",
@@ -301,51 +309,64 @@ function nextOccurrence(rule, from) {
   return m[2] === "day" ? days(n) : m[2] === "week" ? days(n * 7) : months(n);
 }
 
-// Every dated open commitment that falls in the next 7 days, with repeating ones expanded.
-// One that is already late shows once, on today, marked late.
-function weekSchedule(commitments, now) {
-  const start = new Date(now); start.setUTCHours(0, 0, 0, 0);
-  const end = start.getTime() + 8 * 86_400_000; // a day of slack either side; the page picks local days
+// Monday 00:00 UTC of the working week to show: this week, or next week at the weekend.
+function workWeekStart(now) {
+  const d = new Date(now); d.setUTCHours(0, 0, 0, 0);
+  const dow = d.getUTCDay(); // 0 Sun … 6 Sat
+  const back = dow === 0 ? -1 : dow === 6 ? -2 : dow - 1; // weekend → next Monday
+  return new Date(d.getTime() - back * 86_400_000);
+}
+
+// Every dated open commitment in this Mon–Fri, with repeating ones expanded onto each day.
+// A one-off that's already past and not done is "late" and shows once, on today.
+// `overlay` holds repeats the wallpaper remembers itself, for when Foundry can't store them yet.
+function weekSchedule(commitments, now, overlay = {}) {
+  const today = new Date(now); today.setUTCHours(0, 0, 0, 0);
+  const start = workWeekStart(now).getTime() - 86_400_000; // a day of slack for time zones
+  const end = workWeekStart(now).getTime() + 6 * 86_400_000;
   const out = [];
   for (const c of commitments) {
     if (c.state !== "open" || c.someday) continue;
     const anchor = c.dueAt ?? c.startAt;
     if (!anchor) continue;
+    const rule = c.recurrence ?? overlay[c.id] ?? null;
+    const base = { id: c.id, title: c.title, counterpart: c.counterpart ?? null, recurring: Boolean(rule), rule, overlay: !c.recurrence && Boolean(overlay[c.id]) };
     let at = new Date(anchor);
-    const base = { id: c.id, title: c.title, counterpart: c.counterpart ?? null, recurring: Boolean(c.recurrence), rule: c.recurrence ?? null };
-    if (at.getTime() < start.getTime() - 86_400_000) {
-      out.push({ ...base, at: at.toISOString(), late: true });
-      if (!c.recurrence) continue;
-      // carry a late repeating task forward to its upcoming dates too
-      for (let i = 0; i < 400 && at.getTime() < start.getTime(); i++) { const n = nextOccurrence(c.recurrence, at); if (!n) break; at = n; }
+    if (!rule) {
+      if (at.getTime() < today.getTime()) out.push({ ...base, at: at.toISOString(), late: true });
+      else if (at.getTime() < end) out.push({ ...base, at: at.toISOString(), late: false });
+      continue;
     }
+    // A repeating one that's behind: say so once, then show its dates this week as normal.
+    if (at.getTime() < Math.min(start, today.getTime() - 86_400_000)) out.push({ ...base, at: at.toISOString(), late: true });
+    for (let i = 0; i < 800 && at.getTime() < start; i++) { const n = nextOccurrence(rule, at); if (!n) break; at = n; }
     for (let i = 0; i < 40 && at.getTime() < end; i++) {
-      if (at.getTime() >= start.getTime() - 86_400_000) out.push({ ...base, at: at.toISOString(), late: at.getTime() < now - 60_000 && i === 0 && !base.recurring });
-      if (!c.recurrence) break;
-      const n = nextOccurrence(c.recurrence, at);
+      out.push({ ...base, at: at.toISOString(), late: false });
+      const n = nextOccurrence(rule, at);
       if (!n) break;
       at = n;
     }
   }
-  return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(0, 80);
+  return { weekStart: workWeekStart(now).toISOString(), items: out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(0, 120) };
 }
 
 async function readCommitments(env) {
   const body = await getJson(`${foundryBase(env)}/api/backstage/commitments`, foundryHeaders(env));
   const all = body.commitments ?? [];
+  const overlay = (await env.STORE.get("repeat:overlay", "json")) ?? {};
   const now = Date.now();
   const open = all.filter(
     (c) => c.state === "open" && !c.someday && !(c.snoozedUntil && Date.parse(c.snoozedUntil) > now),
   );
   const items = open
-    .map((c) => ({ id: c.id, title: c.title, dueAt: c.dueAt, counterpart: c.counterpart, priority: c.priority ?? 0, recurring: Boolean(c.recurrence) }))
+    .map((c) => ({ id: c.id, title: c.title, dueAt: c.dueAt, counterpart: c.counterpart, priority: c.priority ?? 0, recurring: Boolean(c.recurrence ?? overlay[c.id]) }))
     .sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity) || b.priority - a.priority);
   return {
     open: open.length,
     overdue: items.filter((c) => c.dueAt && Date.parse(c.dueAt) < now).length,
     suggested: all.filter((c) => c.state === "suggested").length,
     items: items.slice(0, 6),
-    week: weekSchedule(open, now),
+    week: weekSchedule(open, now, overlay),
   };
 }
 
@@ -513,6 +534,94 @@ async function readSlack(env) {
   };
 }
 
+// ---------- tasks (the controller page) ----------
+//
+// Tasks live in Foundry Commitments, so they're the same list Foundry and the Mac app see.
+// Production Foundry can't store a repeat yet (its deploys are stuck), so a repeat it rejects is
+// remembered here in "repeat:overlay" and the wallpaper expands it itself. Ticking off an
+// overlay-repeating task moves its date on instead of closing it.
+
+const REPEATS = ["daily", "weekdays", "weekly", "fortnightly", "monthly", "yearly"];
+
+async function changed(env) {
+  await env.STORE.put("stamp", String(Date.now()));
+  await env.STORE.delete("data:cache");
+}
+
+// "2026-11-13" + "10:00" in UK time → an ISO instant (handles GMT/BST).
+function ukInstant(day, time) {
+  const [y, m, d] = day.split("-").map(Number);
+  const [hh, mm] = (time || "09:00").split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(guess));
+  const lh = Number(f.find((p) => p.type === "hour").value), lm = Number(f.find((p) => p.type === "minute").value);
+  const drift = (lh * 60 + lm) - (hh * 60 + mm); // minutes London is ahead of UTC at that moment
+  return new Date(guess - drift * 60_000).toISOString();
+}
+
+async function foundry(env, method, path, body) {
+  const res = await fetch(`${foundryBase(env)}${path}`, {
+    method,
+    headers: { ...foundryHeaders(env), "content-type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function addTask(req, env) {
+  const b = await req.json().catch(() => ({}));
+  const title = clip(b?.title?.trim(), 200);
+  if (!title) return json({ error: "Give the task a title." }, 400);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b?.day ?? "")) return json({ error: "Pick a day." }, 400);
+  if (b.time && !/^\d{2}:\d{2}$/.test(b.time)) return json({ error: "Time must look like 09:30." }, 400);
+  const repeat = REPEATS.includes(b?.repeat) ? b.repeat : null;
+  const created = await foundry(env, "POST", "/api/backstage/commitments", {
+    title,
+    notes: clip(b?.notes?.trim(), 2000) || null,
+    counterpart: clip(b?.who?.trim(), 80) || null,
+    dueAt: ukInstant(b.day, b.time),
+  });
+  if (!created.ok) return json({ error: created.data?.error || `Foundry said ${created.status}` }, 502);
+  const c = created.data.commitment ?? created.data;
+  let repeatStored = "none";
+  if (repeat) {
+    const set = await foundry(env, "PATCH", `/api/backstage/commitments/${c.id}`, { recurrence: repeat });
+    if (set.ok) repeatStored = "foundry";
+    else {
+      const overlay = (await env.STORE.get("repeat:overlay", "json")) ?? {};
+      overlay[c.id] = repeat;
+      await env.STORE.put("repeat:overlay", JSON.stringify(overlay));
+      repeatStored = "wallpaper";
+    }
+  }
+  await changed(env);
+  return json({ ok: true, id: c.id, repeatStored });
+}
+
+async function doneTask(req, env) {
+  const { id } = await req.json().catch(() => ({}));
+  if (!id) return json({ error: "Which task?" }, 400);
+  const overlay = (await env.STORE.get("repeat:overlay", "json")) ?? {};
+  if (overlay[id]) {
+    // Foundry can't repeat it yet: move it on to its next date instead of closing it.
+    const list = await foundry(env, "GET", "/api/backstage/commitments");
+    const c = (list.data.commitments ?? []).find((x) => x.id === id);
+    if (!c) return json({ error: "That task is no longer in Foundry." }, 404);
+    let at = new Date(c.dueAt ?? Date.now());
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    do { at = nextOccurrence(overlay[id], at); } while (at && at.getTime() < today.getTime());
+    const upd = await foundry(env, "PATCH", `/api/backstage/commitments/${id}`, { dueAt: at.toISOString() });
+    if (!upd.ok) return json({ error: upd.data?.error || `Foundry said ${upd.status}` }, 502);
+    await changed(env);
+    return json({ ok: true, next: at.toISOString() });
+  }
+  const upd = await foundry(env, "PATCH", `/api/backstage/commitments/${id}`, { state: "done" });
+  if (!upd.ok) return json({ error: upd.data?.error || `Foundry said ${upd.status}` }, 502);
+  await changed(env);
+  return json({ ok: true, next: upd.data?.next?.dueAt ?? null });
+}
+
 // ---------- suggested replies ----------
 //
 // The drafter on the Mac only SUGGESTS replies. Nothing goes into Gmail or Slack until Dan accepts
@@ -532,7 +641,7 @@ async function saveDrafts(env, v) {
   const now = Date.now();
   v.items = v.items.filter((d) => now - Date.parse(d.updatedAt ?? d.createdAt) < (KEEP_DAYS[d.state] ?? 7) * 86_400_000).slice(-60);
   await env.STORE.put(DRAFTS_KEY, JSON.stringify(v));
-  await env.STORE.delete("data:cache");
+  await changed(env);
 }
 
 function cleanSuggestion(d) {
