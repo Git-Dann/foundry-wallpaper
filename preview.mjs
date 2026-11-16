@@ -49,11 +49,9 @@ const sample = () => ({
     { id: "D1:2", kind: "dm", from: "Syed", fromId: "U2", channel: null, text: "Coachman want to move Thursday's call to Friday, ok?", at: ago(55) },
     { id: "C2:3", kind: "mention", from: "Waqar", fromId: "U3", channel: "wedge-dev", text: "@Dan course feed is back, catching up 41 requests", at: ago(130) },
   ] },
-  drafts: { ok: true, generatedAt: ago(18), skipped: 4, items: [
-    { id: "s1", state: "pending", source: "gmail", to: "Luke McFarland", about: "Confirming 3.4 approval and the course-feed fix", client: "Big Wedge", ref: "t1", urgency: "high", subject: "Re: iOS 3.4 approval and the new course feed", replyingTo: "Luke asked whether 3.4 is approved and when the course feed fix lands.", body: "Hi Luke,\n\nYes, 3.4 is approved on our side. The course feed fix goes out with it on Thursday.\n\nDan", createdAt: ago(18) },
-    { id: "s2", state: "pending", source: "slack", to: "Syed", about: "Friday works, 2pm UK", client: "Coachman", ref: "D1:2", urgency: "normal", subject: null, replyingTo: "Syed asked if the Coachman call can move to Friday.", body: "Friday works. 2pm UK?", createdAt: ago(55) },
-    { id: "s3", state: "accepted", source: "gmail", to: "Sarah Chen", about: "Thanks for the notes, proposal by Friday", client: "Valu", ref: "t2", urgency: "normal", subject: "Re: Discovery call notes", replyingTo: "Sarah sent notes from the discovery call.", body: "Thanks Sarah, these are great. You'll have the proposal by Friday.\n\nDan", createdAt: ago(90) },
-  ] },
+  usage: { ok: true, reportedAt: ago(2),
+    claude: { at: Math.floor(Date.now() / 1000) - 120, fiveHour: { pct: 34.2, resetsAt: Math.floor(Date.now() / 1000) + 2 * 3600 + 900 }, week: { pct: 12, resetsAt: Math.floor(Date.now() / 1000) + 4 * 86400 } },
+    codex: { at: Math.floor(Date.now() / 1000) - 3600, fiveHour: { pct: 81, minutes: 300, resetsAt: Math.floor(Date.now() / 1000) + 40 * 60 }, week: { pct: 21, minutes: 10080, resetsAt: Math.floor(Date.now() / 1000) + 6 * 86400 } } },
   asks: { ok: true, checkedAt: ago(30), items: [
     { id: "a1", state: "open", source: "slack", from: "Luke McFarland", what: "Review the profile page animation and send thoughts", due: at(0,0).slice(0,10), dueText: "this afternoon", client: "Wedge", ref: "C1:1", link: "https://example.slack.com/x", quote: "can you take a look at the animation as well and let me know your thoughts", askedAt: ago(200) },
     { id: "a2", state: "open", source: "gmail", from: "David Hanson", what: "Add the _twilio TXT DNS record for KitFlare", due: null, dueText: null, client: "KitFlare", ref: "t9", link: null, quote: "I need your help in updating TXT DNS records for the host _twilio", askedAt: ago(60) },
@@ -81,7 +79,7 @@ if (process.argv.includes("--live") && !LIVE) {
 
 // Live reload: the page holds an event stream open and reloads when page.html changes.
 const listeners = new Set();
-for (const f of ["./src/page.html", "./src/review.html", "./src/controller.html", "./src/asks.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
+for (const f of ["./src/page.html", "./src/controller.html", "./src/asks.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
 const RELOADER = `<script>new EventSource("/__reload").onmessage=function(){location.reload()};</script>`;
 
 createServer(async (req, res) => {
@@ -106,7 +104,7 @@ createServer(async (req, res) => {
       }
     }
     let d = sample();
-    if (mode === "unconnected") d = { ...d, calendar: { ok: false, reason: "not_connected" }, mail: { ok: false, reason: "not_connected" }, commitments: { ok: false, reason: "not_configured" }, monitors: { ok: false, reason: "not_configured" }, slack: { ok: false, reason: "not_connected_slack" }, drafts: { ok: false, reason: "not_set_up" } };
+    if (mode === "unconnected") d = { ...d, calendar: { ok: false, reason: "not_connected" }, mail: { ok: false, reason: "not_connected" }, commitments: { ok: false, reason: "not_configured" }, monitors: { ok: false, reason: "not_configured" }, slack: { ok: false, reason: "not_connected_slack" }, usage: { ok: false, reason: "not_set_up" } };
     return res.end(JSON.stringify(d));
   }
   res.setHeader("content-type", "text/html; charset=utf-8");
@@ -114,8 +112,7 @@ createServer(async (req, res) => {
   if (u.pathname === "/api/stamp") { res.setHeader("content-type", "application/json"); return res.end('{"stamp":"1"}'); }
   if (u.pathname.startsWith("/api/tasks")) { res.setHeader("content-type", "application/json"); return res.end('{"ok":true,"repeatStored":"wallpaper"}'); }
   if (u.pathname.startsWith("/api/asks")) { res.setHeader("content-type", "application/json"); return res.end('{"ok":true,"state":"done"}'); }
-  const file = u.pathname === "/review" ? "./src/review.html" : u.pathname === "/controller" ? "./src/controller.html" : u.pathname === "/asks" ? "./src/asks.html" : "./src/page.html";
-  if (u.pathname === "/api/drafts/decide") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ ok: true, state: "accepted" })); }
+  const file = u.pathname === "/controller" ? "./src/controller.html" : u.pathname === "/asks" ? "./src/asks.html" : "./src/page.html";
   res.end(readFileSync(new URL(file, import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
 }).listen(Number(process.env.PORT || 8788), () =>
   console.log(`Preview on http://localhost:${process.env.PORT || 8788} with ${LIVE ? "your real data" : "made-up data"}. It reloads when you save src/page.html. Ctrl+C to stop.`));

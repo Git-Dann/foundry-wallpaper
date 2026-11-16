@@ -7,17 +7,12 @@
 //   GET /oauth/callback   Google sends you back here; stores the refresh token in KV
 //   GET /connect-slack    start the one-time Slack sign-in (search, read-only)
 //   GET /oauth/slack      Slack sends you back here; stores the user token in KV
-//   GET /review           read, edit, accept or reject suggested replies
 //   GET /controller       add a task to your week, or tick one off (writes to Foundry Commitments)
 //   POST /api/tasks       add one   ·   POST /api/tasks/done   tick one off
 //   GET /api/stamp        changes whenever something is written, so pages refresh at once
 //   GET /asks             everything people have asked of you, with deadlines
 //   PUT /api/asks         the drafter reports asks it found   ·   POST /api/asks/decide  done / dismiss / add to week
-//   PUT /api/drafts       the local drafter reports the replies it suggests (nothing is drafted yet)
-//   POST /api/drafts/decide   accept (optionally with edited text) or reject one suggestion
-//   GET /api/drafts/queue     accepted suggestions waiting to be saved as drafts (local placer)
-//   GET /api/drafts/refs      every message already suggested, so the drafter doesn't repeat itself
-//   POST /api/drafts/placed   the local placer reports which drafts it saved
+//   PUT /api/usage        the Mac reports Claude and Codex plan usage (percent used, reset times)
 //
 // Secrets (Cloudflare → Workers → foundry-wallpaper → Settings → Variables and secrets):
 //   PAGE_KEY              the long random string in your wallpaper link
@@ -33,7 +28,6 @@
 // a source we couldn't read is reported as unavailable, never as "nothing there".
 
 import PAGE_HTML from "./page.html";
-import REVIEW_HTML from "./review.html";
 import CONTROLLER_HTML from "./controller.html";
 import ASKS_HTML from "./asks.html";
 
@@ -61,19 +55,14 @@ export default {
       if (url.pathname === "/api/data") return json(await loadAll(env, ctx, url.searchParams.get("fresh") === "1"));
       if (url.pathname === "/connect") return await startOauth(url, env);
       if (url.pathname === "/connect-slack") return await startSlack(url, env);
-      if (url.pathname === "/review") return html(REVIEW_HTML);
       if (url.pathname === "/controller") return html(CONTROLLER_HTML);
       if (url.pathname === "/asks") return html(ASKS_HTML);
       if (url.pathname === "/api/asks" && req.method === "PUT") return await putAsks(req, env);
       if (url.pathname === "/api/asks/decide" && req.method === "POST") return await decideAsk(req, env);
       if (url.pathname === "/api/stamp") return json({ stamp: (await env.STORE.get("stamp")) ?? "0" });
+      if (url.pathname === "/api/usage" && req.method === "PUT") return await putUsage(req, env);
       if (url.pathname === "/api/tasks" && req.method === "POST") return await addTask(req, env);
       if (url.pathname === "/api/tasks/done" && req.method === "POST") return await doneTask(req, env);
-      if (url.pathname === "/api/drafts" && req.method === "PUT") return await putDrafts(req, env);
-      if (url.pathname === "/api/drafts/decide" && req.method === "POST") return await decideDraft(req, env);
-      if (url.pathname === "/api/drafts/queue") return json(await draftQueue(env));
-      if (url.pathname === "/api/drafts/refs") return json({ refs: (await loadDrafts(env)).items.map((d) => d.ref) });
-      if (url.pathname === "/api/drafts/placed" && req.method === "POST") return await draftsPlaced(req, env);
       return text("Not found", 404);
     } catch (err) {
       return json({ error: "Something went wrong", detail: String(err?.message ?? err).slice(0, 200) }, 500);
@@ -174,16 +163,16 @@ async function loadAll(env, ctx, fresh) {
     if (cached) return cached;
   }
   const g = await googleToken(env);
-  const [calendar, mail, commitments, monitors, slack, drafts, asks] = await Promise.all([
+  const [calendar, mail, commitments, monitors, slack, usage, asks] = await Promise.all([
     settle(() => (g.ok ? readCalendar(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => (g.ok ? readGmail(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => readCommitments(env)),
     settle(() => readMonitors(env)),
     settle(() => readSlack(env)),
-    settle(() => readDrafts(env)),
+    settle(() => readUsage(env)),
     settle(() => readAsks(env)),
   ]);
-  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, drafts, asks };
+  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, usage, asks };
   ctx.waitUntil(env.STORE.put("data:cache", JSON.stringify(data), { expirationTtl: CACHE_TTL }));
   return data;
 }
@@ -707,110 +696,48 @@ async function readAsks(env) {
   return v;
 }
 
-// ---------- suggested replies ----------
+// ---------- Claude and Codex usage ----------
 //
-// The drafter on the Mac only SUGGESTS replies. Nothing goes into Gmail or Slack until Dan accepts
-// one here; the local placer then saves accepted ones as drafts (never sends) and reports back.
-// States: pending → accepted → placed (or failed) | rejected.
+// The Mac reports plan usage every 5 minutes (local/report-usage.sh): Claude's from the Claude Code
+// status line, Codex's from its session logs. Only percentages and reset times are stored.
 
 const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : null);
-const DRAFTS_KEY = "drafts:list";
-const KEEP_DAYS = { pending: 3, rejected: 7, placed: 7, failed: 7, accepted: 14 };
+const USAGE_KEY = "usage";
 
-async function loadDrafts(env) {
-  const v = await env.STORE.get(DRAFTS_KEY, "json");
-  return v ?? { generatedAt: null, skipped: 0, items: [] };
-}
-
-async function saveDrafts(env, v) {
-  const now = Date.now();
-  v.items = v.items.filter((d) => now - Date.parse(d.updatedAt ?? d.createdAt) < (KEEP_DAYS[d.state] ?? 7) * 86_400_000).slice(-60);
-  await env.STORE.put(DRAFTS_KEY, JSON.stringify(v));
-  await changed(env);
-}
-
-function cleanSuggestion(d) {
-  const source = d?.source === "slack" ? "slack" : "gmail";
+function cleanWindow(w) {
+  const pct = Number(w?.pct);
+  if (!w || !Number.isFinite(pct) || pct < 0 || pct > 1000) return null;
+  const resetsAt = Number(w.resetsAt);
+  const minutes = Number(w.minutes);
   return {
-    source,
-    to: clip(d?.to, 80),
-    about: clip(d?.about, 160),
-    client: clip(d?.client, 60),
-    ref: clip(d?.ref, 160), // Gmail thread id, or Slack "<channel>:<ts>" of the message being answered
-    urgency: ["high", "normal", "low"].includes(d?.urgency) ? d.urgency : "normal",
-    subject: clip(d?.subject, 300),
-    body: clip(d?.body, 6000),
-    replyingTo: clip(d?.replyingTo, 400), // the line they're answering, so the review page has context
+    pct: Math.round(pct * 10) / 10,
+    resetsAt: Number.isFinite(resetsAt) && resetsAt > 1e9 ? Math.round(resetsAt) : null, // epoch seconds
+    minutes: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null,
   };
 }
 
-async function putDrafts(req, env) {
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return text("Expected JSON", 400);
-  }
-  const incoming = Array.isArray(body?.suggestions) ? body.suggestions.slice(0, 25).map(cleanSuggestion).filter((d) => d.to && d.about && d.body && d.ref) : null;
-  if (!incoming) return text('Expected { "suggestions": [...] }', 400);
-  const v = await loadDrafts(env);
-  const now = new Date().toISOString();
-  let added = 0;
-  for (const s of incoming) {
-    const existing = v.items.find((d) => d.ref === s.ref);
-    if (existing && existing.state !== "pending") continue; // a decision stands; never resurrect it
-    if (existing) Object.assign(existing, s, { updatedAt: now });
-    else {
-      v.items.push({ id: crypto.randomUUID(), state: "pending", createdAt: now, updatedAt: now, ...s });
-      added++;
-    }
-  }
-  v.generatedAt = now;
-  v.skipped = Array.isArray(body?.skipped) ? body.skipped.length : 0;
-  await saveDrafts(env, v);
-  return json({ stored: incoming.length, added });
+function cleanTool(t) {
+  if (!t || typeof t !== "object") return null;
+  const at = Number(t.at);
+  const fiveHour = cleanWindow(t.fiveHour);
+  const week = cleanWindow(t.week);
+  if (!fiveHour && !week) return null;
+  return { at: Number.isFinite(at) && at > 1e9 ? Math.round(at) : null, fiveHour, week };
 }
 
-async function decideDraft(req, env) {
-  const { id, action, body } = await req.json().catch(() => ({}));
-  if (!["accept", "reject"].includes(action)) return text("action must be accept or reject", 400);
-  const v = await loadDrafts(env);
-  const d = v.items.find((x) => x.id === id);
-  if (!d) return text("Not found", 404);
-  if (d.state !== "pending" && !(d.state === "failed" && action === "accept")) return json({ ok: false, state: d.state, message: `Already ${d.state}` }, 409);
-  if (action === "accept" && typeof body === "string" && body.trim()) d.body = body.slice(0, 6000);
-  d.state = action === "accept" ? "accepted" : "rejected";
-  d.updatedAt = new Date().toISOString();
-  d.error = null;
-  await saveDrafts(env, v);
-  return json({ ok: true, state: d.state });
+async function putUsage(req, env) {
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") return text("Expected JSON", 400);
+  const prev = (await env.STORE.get(USAGE_KEY, "json")) ?? {};
+  // A tool missing from this report keeps its last good reading (shown with its own "as of").
+  const next = { claude: cleanTool(body.claude) ?? prev.claude ?? null, codex: cleanTool(body.codex) ?? prev.codex ?? null, reportedAt: new Date().toISOString() };
+  await env.STORE.put(USAGE_KEY, JSON.stringify(next));
+  await env.STORE.delete("data:cache");
+  return json({ ok: true, claude: !!next.claude, codex: !!next.codex });
 }
 
-async function draftQueue(env) {
-  const v = await loadDrafts(env);
-  return { items: v.items.filter((d) => d.state === "accepted") };
-}
-
-async function draftsPlaced(req, env) {
-  const { results } = await req.json().catch(() => ({}));
-  if (!Array.isArray(results)) return text('Expected { "results": [...] }', 400);
-  const v = await loadDrafts(env);
-  const now = new Date().toISOString();
-  let n = 0;
-  for (const r of results) {
-    const d = v.items.find((x) => x.id === r?.id);
-    if (!d || d.state !== "accepted") continue;
-    d.state = r.ok ? "placed" : "failed";
-    d.error = r.ok ? null : clip(r.error, 300) || "Couldn't save the draft";
-    d.updatedAt = now;
-    n++;
-  }
-  await saveDrafts(env, v);
-  return json({ updated: n });
-}
-
-async function readDrafts(env) {
-  const v = await env.STORE.get(DRAFTS_KEY, "json");
+async function readUsage(env) {
+  const v = await env.STORE.get(USAGE_KEY, "json");
   if (!v) throw new SourceError("not_set_up");
   return v;
 }

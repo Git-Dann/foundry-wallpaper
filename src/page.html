@@ -172,7 +172,6 @@ body {
 .src.slack { color: #e8a8ff; border-color: rgba(232,168,255,.35); }
 .src.ask { color: #fcd34d; border-color: rgba(252,211,77,.4); }
 .promise .m .src { font-size: 9px; padding: 0 4px; margin-right: 2px; }
-.src.draft { color: var(--green); border-color: rgba(61,214,140,.45); background: rgba(61,214,140,.08); }
 .row-top .name { display: flex; gap: 7px; align-items: center; min-width: 0; }
 .note { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
 .note a { color: var(--ink-2); }
@@ -213,17 +212,20 @@ body {
 .task.rec::before { content: "↻ "; color: #c4b5fd; }
 .task.late { background: rgba(255,122,107,.16); color: #ffb3aa; }
 .more { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
-.sugg { display: flex; flex-direction: column; gap: 4px; padding: 5px 0; }
-.sugg .t { font-size: 13px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
-.sugg .m { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
-.sugg .acts { flex: none; }
-.sugg + .sugg { border-top: 1px solid rgba(233,236,248,.05); }
-.sugg .acts { display: flex; gap: 6px; }
-.btn { font: 600 11px var(--sans); letter-spacing: .02em; border-radius: 6px; padding: 4px 9px; cursor: pointer; border: 1px solid var(--ink-4); background: transparent; color: var(--ink-2); }
-.btn.yes { border-color: rgba(61,214,140,.5); color: var(--green); background: rgba(61,214,140,.08); }
-.btn.no:hover { color: var(--coral); border-color: rgba(255,122,107,.5); }
-.btn:disabled { opacity: .5; cursor: default; }
-.review-link { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; }
+.use { display: grid; gap: 10px; }
+.use-tool { display: grid; gap: 6px; }
+.use-name { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; }
+.use-name .asof { font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.use-name .asof.old { color: var(--amber); }
+.use-win { display: grid; grid-template-columns: 34px 1fr 44px; gap: 8px; align-items: center; }
+.use-win .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.use-win .pct { font-family: var(--mono); font-size: 12px; text-align: right; color: var(--ink); }
+.use-bar { height: 6px; border-radius: 3px; background: rgba(233,236,248,.08); overflow: hidden; }
+.use-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--blue), var(--indigo)); }
+.use-bar i.warm { background: linear-gradient(90deg, #f5b14c, #f59e0b); }
+.use-bar i.hot { background: linear-gradient(90deg, #ff9a8d, var(--coral)); }
+.use-reset { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--ink-3); grid-column: 2 / 4; margin-top: -3px; }
+.use-tool + .use-tool { border-top: 1px solid rgba(233,236,248,.05); padding-top: 10px; }
 .empty { font-size: 13px; color: var(--ink-3); line-height: 1.5; }
 .empty a { color: var(--ink); }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vh, 26px); }
@@ -286,8 +288,8 @@ body {
         <div class="card-body" id="promised"><div class="empty">Reading Foundry…</div></div>
       </div>
       <div class="card">
-        <div class="card-head"><span>03 // Suggested replies</span><span id="draftState"></span></div>
-        <div class="card-body" id="drafts"><div class="empty">—</div></div>
+        <div class="card-head"><span>03 // Claude · Codex</span><span id="useState"></span></div>
+        <div class="card-body" id="usage"><div class="empty">—</div></div>
       </div>
     </div>
     <div class="card">
@@ -554,12 +556,6 @@ body {
   }
 
   // ---------- inbox: Gmail + Slack ----------
-  function draftRefs() {
-    var map = {};
-    if (data && data.drafts && data.drafts.ok) (data.drafts.items || []).forEach(function (d) { if (d.ref && d.state !== "rejected") map[d.ref] = d.state; });
-    return map;
-  }
-  var TAG = { pending: "Reply ready", accepted: "Accepted", placed: "Draft saved", failed: "Draft failed" };
   function countBlock(n, label) {
     var b = h("div", "big", n == null ? "–" : String(n)); b.appendChild(h("small", null, label)); return b;
   }
@@ -567,7 +563,7 @@ body {
     var box = document.getElementById("mail");
     clear(box);
     if (!data) return;
-    var m = data.mail, sl = data.slack || { ok: false, reason: "not_connected_slack" }, drafted = draftRefs();
+    var m = data.mail, sl = data.slack || { ok: false, reason: "not_connected_slack" };
     document.getElementById("mailState").textContent = m.ok ? m.unread + " unread in inbox" : "";
     var top = h("div", "inbox-top");
     var counts = h("div", "counts");
@@ -601,7 +597,6 @@ body {
       var name = h("span", "name");
       name.appendChild(h("span", "trunc private", x.who));
       name.appendChild(h("span", "src" + (x.src === "slack" ? " slack" : ""), x.src === "slack" ? "Slack" : "Mail"));
-      if (x.ref && drafted[x.ref]) name.appendChild(h("span", "src draft", TAG[drafted[x.ref]] || "Reply ready"));
       t.appendChild(name);
       t.appendChild(h("span", "when", ago(x.at)));
       tx.appendChild(t);
@@ -621,54 +616,56 @@ body {
     });
   }
 
-  // ---------- drafted by Claude ----------
-  // Local decisions win until the server has caught up (its storage can lag by a minute).
-  var decided = {};
-  function decide(id, action, btns) {
-    btns.forEach(function (b) { b.disabled = true; });
-    fetch("/api/drafts/decide?k=" + encodeURIComponent(KEY), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: id, action: action }) })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok && r.status !== 409) throw new Error(j.message || r.status); return j; }); })
-      .then(function () { decided[id] = action === "accept" ? "accepted" : "rejected"; renderDrafts(); renderMail(); })
-      .catch(function () { btns.forEach(function (b) { b.disabled = false; }); });
+  // ---------- Claude and Codex usage ----------
+  // Reported by the Mac every 5 minutes. Each tool shows its 5-hour and weekly window: how much
+  // is used and when it resets. A reading that's gone stale says so rather than looking current.
+  function untilText(sec) {
+    if (!sec) return "";
+    var m = Math.round((sec * 1000 - Date.now()) / 60000);
+    if (m <= 0) return "resets now";
+    if (m < 60) return "resets in " + m + "m";
+    if (m < 48 * 60) return "resets in " + Math.floor(m / 60) + "h " + (m % 60) + "m";
+    return "resets " + new Date(sec * 1000).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
   }
-  function renderDrafts() {
-    var box = document.getElementById("drafts");
+  function useWindow(label, w) {
+    var row = h("div", "use-win");
+    row.appendChild(h("span", "lbl", label));
+    var bar = h("div", "use-bar"), fill = h("i");
+    var pct = w ? Math.min(100, w.pct) : 0;
+    // A window whose reset time has passed is back to zero, whatever the last reading said.
+    if (w && w.resetsAt && w.resetsAt * 1000 < Date.now()) pct = 0;
+    fill.style.width = pct + "%";
+    if (pct >= 90) fill.className = "hot"; else if (pct >= 70) fill.className = "warm";
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    row.appendChild(h("span", "pct", w ? Math.round(pct) + "%" : "–"));
+    if (w && w.resetsAt) row.appendChild(h("span", "use-reset", untilText(w.resetsAt)));
+    return row;
+  }
+  function renderUsage() {
+    var box = document.getElementById("usage");
     clear(box);
     if (!data) return;
-    var d = data.drafts;
-    var st = document.getElementById("draftState");
-    if (!d || !d.ok) { st.textContent = ""; box.appendChild(h("div", "empty", "The drafter on your Mac hasn't run yet.")); return; }
-    var items = (d.items || []).map(function (x) { return decided[x.id] ? Object.assign({}, x, { state: decided[x.id] }) : x; });
-    var pending = items.filter(function (x) { return x.state === "pending"; });
-    var waiting = items.filter(function (x) { return x.state === "accepted"; }).length;
-    var mins = d.generatedAt ? Math.round((Date.now() - Date.parse(d.generatedAt)) / 60000) : null;
-    var ran = mins == null ? "" : "Checked " + (mins < 60 ? mins + "m" : Math.round(mins / 60) + "h") + " ago";
-    var top = h("div", "inbox-top");
-    top.appendChild(countBlock(pending.length, "to review"));
-    top.style.marginBottom = "4px";
-    box.appendChild(top);
-    var link = h("a", "review-link", "Read, edit or decide all ↗"); link.href = "/review?k=" + encodeURIComponent(KEY); link.target = "_blank"; link.rel = "noopener";
-    st.textContent = "";
-    box.appendChild(h("div", "note", (waiting ? waiting + " accepted · saving as draft" + (waiting > 1 ? "s" : "") + " within 5 min · " : "") + ran));
-    if (!pending.length) { box.appendChild(h("div", "empty", "Nothing waiting on you.")); box.appendChild(link); return; }
-    var order = { high: 0, normal: 1, low: 2 };
-    pending.sort(function (a, b) { return order[a.urgency] - order[b.urgency]; }).slice(0, innerHeight < 900 ? 1 : innerHeight < 1100 ? 2 : 3).forEach(function (x) {
-      var row = h("div", "sugg");
-      var tx = h("div", "row-text");
-      tx.appendChild(h("div", "t private", x.to + ": " + x.about));
-      tx.appendChild(h("div", "m", (x.source === "slack" ? "Slack" : "Gmail") + (x.client ? " · " + x.client : "")));
-      row.appendChild(tx);
-      var acts = h("div", "acts");
-      var yes = h("button", "btn yes", "Accept"), no = h("button", "btn no", "Reject");
-      yes.type = no.type = "button";
-      yes.addEventListener("click", function () { decide(x.id, "accept", [yes, no]); });
-      no.addEventListener("click", function () { decide(x.id, "reject", [yes, no]); });
-      acts.appendChild(yes); acts.appendChild(no);
-      row.appendChild(acts);
-      box.appendChild(row);
+    var u = data.usage;
+    document.getElementById("useState").textContent = "";
+    if (!u || !u.ok) { box.appendChild(h("div", "empty", "Waiting for your Mac. Run ./local/draft-replies.sh --install, then use Claude Code once.")); return; }
+    var wrap = h("div", "use");
+    [["Claude", u.claude, "Use Claude Code once to send it."], ["Codex", u.codex, "Use Codex once to send it."]].forEach(function (t) {
+      var tool = h("div", "use-tool");
+      var name = h("div", "use-name");
+      name.appendChild(h("span", null, t[0]));
+      var x = t[1];
+      if (x && x.at) {
+        var mins = Math.round((Date.now() - x.at * 1000) / 60000);
+        name.appendChild(h("span", "asof" + (mins > 360 ? " old" : ""), "as of " + (mins < 1 ? "now" : mins < 60 ? mins + "m ago" : mins < 48 * 60 ? Math.round(mins / 60) + "h ago" : Math.round(mins / 1440) + "d ago")));
+      }
+      tool.appendChild(name);
+      if (!x) { tool.appendChild(h("div", "note", "No reading yet. " + t[2])); wrap.appendChild(tool); return; }
+      tool.appendChild(useWindow("5h", x.fiveHour));
+      tool.appendChild(useWindow("Week", x.week));
+      wrap.appendChild(tool);
     });
-    link.style.display = "inline-block"; link.style.marginTop = "6px";
-    box.appendChild(link);
+    box.appendChild(wrap);
   }
 
   // ---------- on you: asked of you + promised by you ----------
@@ -765,7 +762,7 @@ body {
   }
 
   function renderAll() {
-    renderClock(); renderDial(); renderNext(); renderMail(); renderDrafts(); renderPromised(); renderSystems(); renderWeek(); renderFoot();
+    renderClock(); renderDial(); renderNext(); renderMail(); renderUsage(); renderPromised(); renderSystems(); renderWeek(); renderFoot();
   }
 
   function load() {
@@ -778,7 +775,7 @@ body {
   renderAll();
   load();
   setInterval(load, 60000);
-  // Something added in the controller or accepted on the review page shows within ~15 seconds.
+  // Something added in the controller or ticked off on the asks page shows within ~15 seconds.
   var stamp = null;
   setInterval(function () {
     fetch("/api/stamp?k=" + encodeURIComponent(KEY), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {

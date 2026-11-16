@@ -2,76 +2,10 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "suggestions",
     "asks",
     "skipped"
   ],
   "properties": {
-    "suggestions": {
-      "type": "array",
-      "maxItems": 10,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "source",
-          "to",
-          "about",
-          "ref",
-          "urgency",
-          "body",
-          "replyingTo"
-        ],
-        "properties": {
-          "source": {
-            "enum": [
-              "gmail",
-              "slack"
-            ]
-          },
-          "to": {
-            "type": "string"
-          },
-          "about": {
-            "type": "string"
-          },
-          "client": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "ref": {
-            "type": "string"
-          },
-          "urgency": {
-            "enum": [
-              "high",
-              "normal",
-              "low"
-            ]
-          },
-          "subject": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "body": {
-            "type": "string"
-          },
-          "replyingTo": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "skipped": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "asks": {
       "type": "array",
       "maxItems": 30,
@@ -138,6 +72,12 @@
             ]
           }
         }
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     }
   }

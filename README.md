@@ -1,8 +1,8 @@
 # Foundry Wallpaper
 
 A live desktop wallpaper for [Plash](https://sindresorhus.com/plash): the date, UK and Pakistan time,
-today's calendar as a 24-hour dial, Gmail and Slack, replies Claude has drafted for you, the promises
-you've made in Foundry, and every client's uptime.
+today's calendar as a 24-hour dial, Gmail and Slack, what people have asked of you, the promises
+you've made in Foundry, your Claude and Codex usage, and every client's uptime.
 
 It runs on Cloudflare Workers and never writes to Google or Foundry. Each source fails on its own
 and says so on the wallpaper. A source that can't be read never shows as "nothing there".
@@ -60,32 +60,32 @@ same searches you'd type in Slack. Not yet checked against a real workspace: if 
 (There's also a sign-in route, `/connect-slack`, for an app set up with `SLACK_CLIENT_ID`,
 `SLACK_CLIENT_SECRET` and the redirect URL `…/oauth/slack`. You only need one of the two.)
 
-### 4. Claude suggests your replies (runs on your Mac)
+### 4. Your Mac's jobs: asks and usage
 
-Two scheduled jobs, run by your own Claude Code with your own connectors. **Neither can send.**
+Two scheduled jobs, run by your own Claude Code. **Neither can send or change anything** in Gmail,
+Slack or Foundry.
 
-- **Suggest** (hourly, weekdays 07:00–19:00): finds email and Slack waiting on you, looks up the
-  client, tasks and meeting notes in Foundry, and writes a suggested reply in your voice. It has
-  **no** tool that writes to Gmail or Slack. The suggestions appear on the wallpaper.
-- **Accept or reject** on the wallpaper (Plash browsing mode on), or read and edit the full text
-  at `<address>/review?k=…`. Rejected is final: it won't be suggested again.
-- **Save** (every 5 minutes): saves the replies you accepted as **drafts** in Gmail or Slack,
-  word for word. Only draft tools are allowed. When nothing is accepted it doesn't start Claude
-  at all, so it costs nothing.
+- **Asks** (hourly, weekdays 07:00–19:00): see *On you* below.
+- **Usage** (every 5 minutes): sends your Claude and Codex plan usage to the wallpaper's
+  **Claude · Codex** card, showing the 5-hour and weekly windows, how much is used and when each
+  resets. It calls no model, so it costs nothing.
+  - Claude's figures come from Claude Code's status line, which `--install` sets up (unless you
+    already have one, in which case it tells you). They update whenever you use Claude Code.
+  - Codex's come from its session logs in `~/.codex/sessions`, so they update whenever you use Codex.
+  - A reading older than 6 hours shows its age in amber. A window whose reset time has passed
+    shows as 0%.
 
 Set-up:
 1. Install Claude Code (`curl -fsSL https://claude.ai/install.sh | bash`), sign in, and
    `brew install jq git`.
 2. `./local/draft-replies.sh` once. It creates `~/.foundry-drafter/env`: paste your wallpaper
    link (with its `?k=`) under `WALLPAPERS`.
-3. `./local/draft-replies.sh --check` and fix the four server names in that file if they differ.
-4. `./local/draft-replies.sh` to get suggestions now; `./local/draft-replies.sh --place` to save
-   accepted ones now.
-5. `./local/draft-replies.sh --install` to schedule both jobs. Run it again after a `git pull`
-   that changes the schedule.
+3. `./local/draft-replies.sh --check` and fix the server names in that file if they differ.
+4. `./local/draft-replies.sh --install` to schedule both jobs and set the status line. It also
+   removes the old suggested-replies jobs. Run it again after a `git pull` that changes the schedule.
+5. `./local/draft-replies.sh` collects asks now; `./local/draft-replies.sh --usage` sends usage now.
 
-Log: `~/.foundry-drafter/drafter.log`. Edit `local/prompt.md` (suggestions) or `local/place.md`
-(saving drafts) to change how they work.
+Log: `~/.foundry-drafter/drafter.log`. Edit `local/asks.md` to change what counts as an ask.
 
 ### On you: what's been asked of you
 
@@ -144,7 +144,7 @@ Secrets live only in Cloudflare (Settings → Variables and secrets); a deploy k
 | Gmail | inbox unread count; the 7 newest unread in Primary: sender name, subject, time | message bodies |
 | Foundry `/api/backstage/commitments` | open commitments, sorted by due date | quotes, evidence |
 | Slack search | mentions of you and DMs to you, last 3 days: sender, channel, first 180 characters | anything else |
-| Local drafter | who each draft is to, a one-line summary, the client | the draft itself |
+| Your Mac | asks (who, what, due, their words); Claude and Codex usage (percent used, reset times) | message bodies, prompts, tokens |
 | Foundry `/api/monitors` | production monitors only: state per service; names only where something's wrong | targets, URLs |
 
 Data is cached for 60 seconds in KV, so many open screens cost one read a minute.

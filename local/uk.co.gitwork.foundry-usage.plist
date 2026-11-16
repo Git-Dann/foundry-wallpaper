@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>uk.co.gitwork.foundry-drafter-suggest</string>
+  <key>Label</key><string>uk.co.gitwork.foundry-usage</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/bash</string><string>-lc</string><string>"__SCRIPT__" --scheduled</string></array>
-  <key>StartInterval</key><integer>3600</integer>
+  <array><string>/bin/bash</string><string>-lc</string><string>"__USAGE__"</string></array>
+  <key>StartInterval</key><integer>300</integer>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>__LOG__</string>
   <key>StandardErrorPath</key><string>__LOG__</string>
