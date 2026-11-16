@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>On You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #e9ecf8; --ink-2: rgba(233,236,248,.72); --ink-3: rgba(233,236,248,.46); --ink-4: rgba(233,236,248,.18);
+  --line: rgba(233,236,248,.10); --ground: #070b18; --card: #0f1528;
+  --green: #3dd68c; --coral: #ff7a6b; --amber: #f5b14c; --gold: #fcd34d; --violet: #c4b5fd; --blue: #7aa2ff;
+  --serif: "DM Serif Display", Georgia, serif; --sans: Inter, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+main { max-width: 820px; margin: 0 auto; padding: 36px 20px 72px; display: grid; gap: 22px; }
+h1 { font: 400 40px/1.1 var(--serif); margin: 0; }
+.lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 22px; font: 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.summary b { color: var(--ink); font-weight: 500; }
+.summary .late b { color: var(--coral); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { font: 600 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--ink-4); background: transparent; color: var(--ink-2); cursor: pointer; }
+.tab[aria-pressed="true"] { background: rgba(122,162,255,.14); border-color: rgba(122,162,255,.5); color: var(--ink); }
+section.group { display: grid; gap: 10px; }
+h2 { margin: 0; font: 500 11px var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3); display: flex; gap: 10px; align-items: center; }
+h2 .n { color: var(--ink-2); }
+h2.late { color: var(--coral); }
+h2.today { color: var(--amber); }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
+.item.late { border-color: rgba(255,122,107,.35); }
+.top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.what { font-weight: 600; font-size: 16px; }
+.due { font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.item.late .due { color: var(--coral); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--ink-2); }
+.chip { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--ink-4); color: var(--ink-2); }
+.chip.slack { color: #e8a8ff; border-color: rgba(232,168,255,.35); }
+.chip.gmail { color: var(--blue); border-color: rgba(122,162,255,.4); }
+.chip.meeting { color: var(--gold); border-color: rgba(252,211,77,.4); }
+.chip.promise { color: var(--violet); border-color: rgba(196,181,253,.4); }
+blockquote { margin: 0; padding-left: 12px; border-left: 2px solid var(--ink-4); color: var(--ink-2); font-size: 14px; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button.b { font: 600 12.5px var(--sans); border-radius: 7px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--ink-4); background: transparent; color: var(--ink); }
+button.done { border-color: rgba(61,214,140,.5); color: var(--green); background: rgba(61,214,140,.08); }
+button.add { border-color: rgba(122,162,255,.5); color: var(--blue); background: rgba(122,162,255,.08); }
+button.b:disabled { opacity: .5; cursor: default; }
+a.open { font-size: 13px; color: var(--ink-2); }
+.state { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.msg { font-size: 13px; color: var(--coral); }
+.empty { color: var(--ink-3); }
+.foot { font-size: 13px; color: var(--ink-3); }
+.foot a { color: var(--ink-2); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 520px) { h1 { font-size: 32px; } main { padding-top: 24px; } }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:10px">
+    <h1>On you</h1>
+    <p class="lede">What people have asked you for in Slack, email and meetings, plus what you've promised in Foundry. Soonest deadline first. Each ask quotes the person's own words so you can check it.</p>
+    <div class="summary" id="summary"></div>
+  </header>
+  <div class="tabs" role="group" aria-label="Show">
+    <button class="tab" data-tab="open" aria-pressed="true">Open</button>
+    <button class="tab" data-tab="closed" aria-pressed="false">Done &amp; dismissed</button>
+  </div>
+  <div id="list"><p class="empty">Loading…</p></div>
+  <p class="foot" id="foot"></p>
+</main>
+<script>
+(function () {
+  var KEY = new URLSearchParams(location.search).get("k") || "";
+  var tab = "open", asks = [], promises = [], checkedAt = null, local = {};
+  var list = document.getElementById("list");
+  function h(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function dayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  var SRC = { slack: "Slack", gmail: "Email", meeting: "Meeting", promise: "Promised" };
+
+  function bucket(due) {
+    if (!due) return "none";
+    var t = dayStart(new Date()), d = dayStart(due), diff = Math.round((d - t) / 86400000);
+    if (diff < 0) return "late";
+    if (diff === 0) return "today";
+    var endOfWeek = new Date(t); endOfWeek.setDate(t.getDate() + (7 - (t.getDay() || 7)));
+    return d <= endOfWeek ? "week" : "later";
+  }
+  var GROUPS = [["late", "Late"], ["today", "Today"], ["week", "This week"], ["later", "Later"], ["none", "No date"]];
+
+  function rows() {
+    var all = [];
+    asks.forEach(function (a) {
+      var st = local[a.id] || a.state;
+      all.push({ kind: "ask", id: a.id, state: st, what: a.what, who: a.from, src: a.source, client: a.client, quote: a.quote, link: a.link, dueText: a.dueText, due: a.due ? new Date(a.due + "T17:00:00") : null, askedAt: a.askedAt });
+    });
+    if (tab === "open") promises.forEach(function (p) {
+      all.push({ kind: "promise", id: p.id, state: "open", what: p.title, who: p.counterpart, src: "promise", due: p.dueAt ? new Date(p.dueAt) : null, recurring: p.recurring });
+    });
+    return all.filter(function (x) { return tab === "open" ? x.state === "open" : x.state !== "open"; })
+      .sort(function (a, b) { return (a.due ? a.due - 0 : Infinity) - (b.due ? b.due - 0 : Infinity) || (a.kind === "ask" ? -1 : 1); });
+  }
+
+  function render() {
+    list.innerHTML = "";
+    var all = rows();
+    var open = asks.filter(function (a) { return (local[a.id] || a.state) === "open"; });
+    var lateN = open.filter(function (a) { return a.due && bucket(new Date(a.due + "T17:00:00")) === "late"; }).length
+      + promises.filter(function (p) { return p.dueAt && bucket(new Date(p.dueAt)) === "late"; }).length;
+    var s = document.getElementById("summary"); s.innerHTML = "";
+    [[open.length, "asked of you"], [promises.length, "promised"], [lateN, "late", "late"]].forEach(function (x) {
+      var sp = h("span", x[2] || ""); sp.appendChild(h("b", null, String(x[0]))); sp.appendChild(document.createTextNode(" " + x[1])); s.appendChild(sp);
+    });
+    if (!all.length) { list.appendChild(h("p", "empty", tab === "open" ? "Nothing on you right now." : "Nothing ticked off yet.")); return; }
+    var wrap = h("div"); wrap.style.display = "grid"; wrap.style.gap = "24px";
+    var groups = tab === "open" ? GROUPS : [["all", "Done & dismissed"]];
+    groups.forEach(function (g) {
+      var items = g[0] === "all" ? all : all.filter(function (x) { return bucket(x.due) === g[0]; });
+      if (!items.length) return;
+      var sec = h("section", "group");
+      var hd = h("h2", g[0]); hd.appendChild(document.createTextNode(g[1])); hd.appendChild(h("span", "n", String(items.length)));
+      sec.appendChild(hd);
+      items.forEach(function (x) { sec.appendChild(card(x, g[0])); });
+      wrap.appendChild(sec);
+    });
+    list.appendChild(wrap);
+  }
+
+  function card(x, group) {
+    var c = h("article", "item" + (group === "late" ? " late" : ""));
+    var top = h("div", "top");
+    top.appendChild(h("div", "what", x.what));
+    top.appendChild(h("div", "due", x.due ? x.due.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : (x.dueText || "No date")));
+    c.appendChild(top);
+    var meta = h("div", "meta");
+    meta.appendChild(h("span", "chip " + x.src, SRC[x.src] + (x.recurring ? " ↻" : "")));
+    if (x.who) meta.appendChild(h("span", null, (x.kind === "ask" ? "From " : "For ") + x.who));
+    if (x.client && x.client !== x.who) meta.appendChild(h("span", null, "· " + x.client));
+    if (x.askedAt) meta.appendChild(h("span", null, "· asked " + new Date(x.askedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })));
+    c.appendChild(meta);
+    if (x.quote) c.appendChild(h("blockquote", null, "“" + x.quote + "”"));
+    if (x.kind === "ask") {
+      var acts = h("div", "acts");
+      var msg = h("span", "msg");
+      if (x.state === "open") {
+        acts.appendChild(btn("Done", "done", x, "done", msg));
+        acts.appendChild(btn("Add to my week", "add", x, "add", msg));
+        acts.appendChild(btn("Not for me", "", x, "dismiss", msg));
+      } else {
+        acts.appendChild(h("span", "state", x.state === "added" ? "Added to your week" : x.state === "done" ? "Done" : "Dismissed"));
+        acts.appendChild(btn("Reopen", "", x, "reopen", msg));
+      }
+      if (x.link) { var a = h("a", "open", "Open in " + SRC[x.src] + " ↗"); a.href = x.link; a.target = "_blank"; a.rel = "noopener"; acts.appendChild(a); }
+      acts.appendChild(msg);
+      c.appendChild(acts);
+    }
+    return c;
+  }
+
+  function btn(label, cls, x, action, msg) {
+    var b = h("button", "b " + cls, label); b.type = "button";
+    b.addEventListener("click", function () {
+      b.disabled = true; msg.textContent = "";
+      fetch("/api/asks/decide?k=" + encodeURIComponent(KEY), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: x.id, action: action }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+        .then(function (j) { local[x.id] = j.state; render(); })
+        .catch(function (e) { b.disabled = false; msg.textContent = "Didn't save: " + e.message; });
+    });
+    return b;
+  }
+
+  function load() {
+    fetch("/api/data?k=" + encodeURIComponent(KEY), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        asks = d.asks && d.asks.ok ? d.asks.items || [] : [];
+        checkedAt = d.asks && d.asks.ok ? d.asks.checkedAt : null;
+        promises = d.commitments && d.commitments.ok ? d.commitments.items || [] : [];
+        document.getElementById("foot").textContent = checkedAt ? "Last checked " + new Date(checkedAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + ". The drafter on your Mac checks again every hour on weekdays." : "Not checked yet. The drafter on your Mac checks every hour on weekdays.";
+        render();
+      })
+      .catch(function () { list.innerHTML = ""; list.appendChild(h("p", "empty", "Couldn't load. Check the link includes ?k=.")); });
+  }
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.addEventListener("click", function () { tab = t.dataset.tab; document.querySelectorAll(".tab").forEach(function (u) { u.setAttribute("aria-pressed", String(u === t)); }); render(); });
+  });
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

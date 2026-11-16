@@ -11,6 +11,8 @@
 //   GET /controller       add a task to your week, or tick one off (writes to Foundry Commitments)
 //   POST /api/tasks       add one   ·   POST /api/tasks/done   tick one off
 //   GET /api/stamp        changes whenever something is written, so pages refresh at once
+//   GET /asks             everything people have asked of you, with deadlines
+//   PUT /api/asks         the drafter reports asks it found   ·   POST /api/asks/decide  done / dismiss / add to week
 //   PUT /api/drafts       the local drafter reports the replies it suggests (nothing is drafted yet)
 //   POST /api/drafts/decide   accept (optionally with edited text) or reject one suggestion
 //   GET /api/drafts/queue     accepted suggestions waiting to be saved as drafts (local placer)
@@ -33,6 +35,7 @@
 import PAGE_HTML from "./page.html";
 import REVIEW_HTML from "./review.html";
 import CONTROLLER_HTML from "./controller.html";
+import ASKS_HTML from "./asks.html";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
@@ -60,6 +63,9 @@ export default {
       if (url.pathname === "/connect-slack") return await startSlack(url, env);
       if (url.pathname === "/review") return html(REVIEW_HTML);
       if (url.pathname === "/controller") return html(CONTROLLER_HTML);
+      if (url.pathname === "/asks") return html(ASKS_HTML);
+      if (url.pathname === "/api/asks" && req.method === "PUT") return await putAsks(req, env);
+      if (url.pathname === "/api/asks/decide" && req.method === "POST") return await decideAsk(req, env);
       if (url.pathname === "/api/stamp") return json({ stamp: (await env.STORE.get("stamp")) ?? "0" });
       if (url.pathname === "/api/tasks" && req.method === "POST") return await addTask(req, env);
       if (url.pathname === "/api/tasks/done" && req.method === "POST") return await doneTask(req, env);
@@ -168,15 +174,16 @@ async function loadAll(env, ctx, fresh) {
     if (cached) return cached;
   }
   const g = await googleToken(env);
-  const [calendar, mail, commitments, monitors, slack, drafts] = await Promise.all([
+  const [calendar, mail, commitments, monitors, slack, drafts, asks] = await Promise.all([
     settle(() => (g.ok ? readCalendar(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => (g.ok ? readGmail(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => readCommitments(env)),
     settle(() => readMonitors(env)),
     settle(() => readSlack(env)),
     settle(() => readDrafts(env)),
+    settle(() => readAsks(env)),
   ]);
-  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, drafts };
+  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, drafts, asks };
   ctx.waitUntil(env.STORE.put("data:cache", JSON.stringify(data), { expirationTtl: CACHE_TTL }));
   return data;
 }
@@ -620,6 +627,84 @@ async function doneTask(req, env) {
   if (!upd.ok) return json({ error: upd.data?.error || `Foundry said ${upd.status}` }, 502);
   await changed(env);
   return json({ ok: true, next: upd.data?.next?.dueAt ?? null });
+}
+
+// ---------- asks: what people have asked of Dan ----------
+//
+// Found by the drafter (and the first manual pass) in Slack, Gmail and meeting notes. Each one
+// carries the asker's own words, so it can be checked. States: open → done | dismissed | added
+// ("added" = put in Foundry Commitments with its deadline). A decision is never undone by a
+// later scan finding the same message again.
+
+const ASKS_KEY = "asks:list";
+
+function cleanAsk(a) {
+  const due = typeof a?.due === "string" && /^\d{4}-\d{2}-\d{2}/.test(a.due) ? a.due.slice(0, 10) : null;
+  return {
+    source: ["slack", "gmail", "meeting"].includes(a?.source) ? a.source : "gmail",
+    from: clip(a?.from, 80),
+    what: clip(a?.what, 160),
+    due,
+    dueText: clip(a?.dueText, 60),
+    client: clip(a?.client, 60),
+    ref: clip(a?.ref, 160),
+    link: typeof a?.link === "string" && /^https:\/\//.test(a.link) ? a.link.slice(0, 500) : null,
+    quote: clip(a?.quote, 300),
+    askedAt: typeof a?.askedAt === "string" ? a.askedAt.slice(0, 40) : null,
+  };
+}
+
+async function putAsks(req, env) {
+  const body = await req.json().catch(() => null);
+  const incoming = Array.isArray(body?.asks) ? body.asks.slice(0, 60).map(cleanAsk).filter((a) => a.from && a.what && a.ref && a.quote) : null;
+  if (!incoming) return text('Expected { "asks": [...] }', 400);
+  const v = (await env.STORE.get(ASKS_KEY, "json")) ?? { items: [] };
+  const now = new Date().toISOString();
+  let added = 0;
+  for (const a of incoming) {
+    const existing = v.items.find((x) => x.ref === a.ref);
+    if (existing) { if (existing.state === "open") Object.assign(existing, a, { updatedAt: now }); continue; }
+    v.items.push({ id: crypto.randomUUID(), state: "open", createdAt: now, updatedAt: now, ...a });
+    added++;
+  }
+  v.checkedAt = now;
+  // Keep closed ones a fortnight (so a rescan can't resurrect them), open ones until they're 30 days old.
+  const cutoff = (d) => Date.now() - Date.parse(d.updatedAt) < (d.state === "open" ? 30 : 14) * 86_400_000;
+  v.items = v.items.filter(cutoff).slice(-200);
+  await env.STORE.put(ASKS_KEY, JSON.stringify(v));
+  await changed(env);
+  return json({ stored: incoming.length, added });
+}
+
+async function decideAsk(req, env) {
+  const { id, action } = await req.json().catch(() => ({}));
+  if (!["done", "dismiss", "reopen", "add"].includes(action)) return json({ error: "action must be done, dismiss, reopen or add" }, 400);
+  const v = (await env.STORE.get(ASKS_KEY, "json")) ?? { items: [] };
+  const a = v.items.find((x) => x.id === id);
+  if (!a) return json({ error: "Not found" }, 404);
+  if (action === "add") {
+    // Put it in the week: a Foundry commitment due on its deadline (or today), 17:00 UK.
+    const day = a.due ?? new Date().toISOString().slice(0, 10);
+    const created = await foundry(env, "POST", "/api/backstage/commitments", {
+      title: a.what,
+      notes: `${a.from} asked (${a.source}): "${a.quote}"${a.link ? `\n${a.link}` : ""}`,
+      counterpart: a.client || a.from,
+      dueAt: ukInstant(day, "17:00"),
+    });
+    if (!created.ok) return json({ error: created.data?.error || `Foundry said ${created.status}` }, 502);
+    a.commitmentId = (created.data.commitment ?? created.data).id;
+  }
+  a.state = action === "done" ? "done" : action === "dismiss" ? "dismissed" : action === "add" ? "added" : "open";
+  a.updatedAt = new Date().toISOString();
+  await env.STORE.put(ASKS_KEY, JSON.stringify(v));
+  await changed(env);
+  return json({ ok: true, state: a.state });
+}
+
+async function readAsks(env) {
+  const v = await env.STORE.get(ASKS_KEY, "json");
+  if (!v) throw new SourceError("not_set_up");
+  return v;
 }
 
 // ---------- suggested replies ----------

@@ -17,6 +17,7 @@
 #   WALLPAPERS                          your wallpaper link, "<url>?k=<key>" (one per line)
 #   GMAIL_MCP, SLACK_MCP, FOUNDRY_MCP, CALENDAR_MCP   the MCP server names `claude mcp list` shows
 #   MODEL                               model for both jobs (default sonnet)
+#   MEETINGS_MCP                        Meetings connector name, if you have it (default claude_ai_Meetings)
 set -euo pipefail
 # launchd starts us with a bare PATH and bash never reads ~/.zprofile, so add where Claude Code
 # (native installer) and Homebrew live, or scheduled runs can't find claude or jq.
@@ -62,6 +63,7 @@ READ_TOOLS=(
   $(tools_for "$SLACK_MCP" slack_search_public_and_private slack_read_thread slack_read_channel slack_read_user_profile slack_search_users)
   $(tools_for "$FOUNDRY_MCP" whoami list_clients get_client list_tasks get_task find_meetings list_wiki get_wiki_page list_documents list_conversations)
   $(tools_for "$CALENDAR_MCP" list_events search_events get_event)
+  $(tools_for "${MEETINGS_MCP:-claude_ai_Meetings}" list_meetings get_meeting get_meeting_action_items)
 )
 # The place job: read the thread it's answering, then save a draft. Nothing else.
 PLACE_TOOLS=(
@@ -153,10 +155,13 @@ REPORT="$(run_claude "$PROMPT" "$HERE/draft-schema.json" "${READ_TOOLS[@]}" -- "
 [[ -n "$REPORT" ]] || { log "suggest: no report from Claude"; exit 1; }
 
 jq -r '.suggestions[]?.ref // empty' <<<"$REPORT" >> "$DONE_FILE"
+ASKS="$(jq -c '{asks: (.asks // [])}' <<<"$REPORT")"
 for link in "${TARGETS[@]}"; do
   # One wallpaper being down mustn't lose the report for the others.
   curl -fsS -X PUT -H 'content-type: application/json' --data "$REPORT" "$(base_of "$link")/api/drafts?k=$(key_of "$link")" >> "$LOG" \
     || log "suggest: couldn't reach $(base_of "$link")"
+  curl -fsS -X PUT -H 'content-type: application/json' --data "$ASKS" "$(base_of "$link")/api/asks?k=$(key_of "$link")" >> "$LOG" \
+    || log "asks: couldn't reach $(base_of "$link")"
 done
-log "suggest: $(jq '.suggestions | length' <<<"$REPORT") suggested"
+log "suggest: $(jq '.suggestions | length' <<<"$REPORT") suggested, $(jq '.asks | length' <<<"$REPORT") asks"
 jq '.' <<<"$REPORT"

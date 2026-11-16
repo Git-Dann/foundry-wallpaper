@@ -170,6 +170,8 @@ body {
 .counts { display: flex; gap: clamp(18px, 2vw, 32px); align-items: flex-end; }
 .src { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--ink-4); border-radius: 4px; padding: 1px 5px; flex: none; }
 .src.slack { color: #e8a8ff; border-color: rgba(232,168,255,.35); }
+.src.ask { color: #fcd34d; border-color: rgba(252,211,77,.4); }
+.promise .m .src { font-size: 9px; padding: 0 4px; margin-right: 2px; }
 .src.draft { color: var(--green); border-color: rgba(61,214,140,.45); background: rgba(61,214,140,.08); }
 .row-top .name { display: flex; gap: 7px; align-items: center; min-width: 0; }
 .note { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
@@ -280,7 +282,7 @@ body {
     </div>
     <div class="split">
       <div class="card">
-        <div class="card-head"><span>02 // Promised</span><span id="promState"></span></div>
+        <div class="card-head"><span>02 // On you</span><span id="promState"></span></div>
         <div class="card-body" id="promised"><div class="empty">Reading Foundry…</div></div>
       </div>
       <div class="card">
@@ -669,29 +671,52 @@ body {
     box.appendChild(link);
   }
 
-  // ---------- promised ----------
+  // ---------- on you: asked of you + promised by you ----------
+  // One list, soonest deadline first. Asks come from Slack, Gmail and meeting notes (with the
+  // asker's own words behind them); promises are open Foundry commitments.
+  function onYouItems() {
+    var out = [];
+    var a = data.asks, c = data.commitments;
+    if (a && a.ok) (a.items || []).filter(function (x) { return x.state === "open"; }).forEach(function (x) {
+      out.push({ kind: "ask", title: x.what, who: x.from, src: x.source, due: x.due ? new Date(x.due + "T17:00:00") : null, dueText: x.dueText, client: x.client });
+    });
+    if (c && c.ok) (c.items || []).forEach(function (x) {
+      out.push({ kind: "promise", title: x.title, who: x.counterpart, src: "promise", due: x.dueAt ? new Date(x.dueAt) : null, recurring: x.recurring });
+    });
+    out.sort(function (p, q) { return (p.due ? p.due.getTime() : Infinity) - (q.due ? q.due.getTime() : Infinity) || (p.kind === "ask" ? -1 : 1); });
+    return out;
+  }
+  var SRC = { slack: "Slack", gmail: "Email", meeting: "Meeting", promise: "Promised" };
   function renderPromised() {
     var box = document.getElementById("promised");
     clear(box);
     if (!data) return;
-    var c = data.commitments;
-    if (!c.ok) { emptyMsg(box, "Commitments", c.reason); return; }
-    document.getElementById("promState").textContent = c.overdue ? c.overdue + " late" : "";
-    var big = h("div", "big", String(c.open)); big.appendChild(h("small", null, c.suggested ? c.suggested + " to review" : "open"));
-    big.style.marginBottom = "8px";
-    box.appendChild(big);
-    if (!c.items.length) { box.appendChild(h("div", "empty", "Nothing promised. Enjoy it.")); return; }
+    var a = data.asks, c = data.commitments;
+    if ((!a || !a.ok) && !c.ok) { emptyMsg(box, "Foundry", c.reason); return; }
+    var items = onYouItems();
+    var asks = items.filter(function (x) { return x.kind === "ask"; }).length, proms = items.length - asks;
+    var late = items.filter(function (x) { return x.due && x.due.getTime() < Date.now(); }).length;
+    var st = document.getElementById("promState"); clear(st);
+    var all = h("a", "add-link", "All ↗"); all.href = "/asks?k=" + encodeURIComponent(KEY); all.target = "_blank"; all.rel = "noopener";
+    st.appendChild(all);
+    var top = h("div", "counts"); top.style.marginBottom = "6px";
+    top.appendChild(countBlock(asks, "asked"));
+    top.appendChild(countBlock(proms, "promised"));
+    box.appendChild(top);
+    if (late) { var ln = h("div", "note", late + " late"); ln.style.color = "var(--coral)"; ln.style.marginTop = "-2px"; box.appendChild(ln); }
+    if (!items.length) { box.appendChild(h("div", "empty", "Nothing on you. Enjoy it.")); return; }
     var todayKey = dayKey(new Date());
-    c.items.slice(0, innerHeight < 900 ? 1 : innerHeight < 1000 ? 2 : 3).forEach(function (it) {
+    items.slice(0, innerHeight < 900 ? 1 : innerHeight < 1300 ? 2 : 3).forEach(function (it) {
       var row = h("div", "promise");
-      var due = it.dueAt ? new Date(it.dueAt) : null;
-      var overdue = due && due.getTime() < Date.now(), today = due && dayKey(due) === todayKey;
+      var overdue = it.due && it.due.getTime() < Date.now(), today = it.due && dayKey(it.due) === todayKey;
       row.appendChild(h("span", "ring" + (overdue ? " overdue" : today ? " today" : "")));
       var tx = h("div", "row-text");
       tx.appendChild(h("div", "t private", it.title));
-      var meta = due ? (overdue ? "Late · " : today ? "Today · " : "") + due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
-      if (it.counterpart) meta += " · " + it.counterpart;
-      tx.appendChild(h("div", "m" + (overdue ? " overdue" : ""), meta));
+      var when = it.due ? (overdue ? "Late · " : today ? "Today · " : "") + it.due.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : (it.dueText || "No date");
+      var meta = h("div", "m" + (overdue ? " overdue" : ""));
+      meta.appendChild(h("span", "src" + (it.kind === "ask" ? " ask" : ""), SRC[it.src]));
+      meta.appendChild(document.createTextNode(" " + when + (it.who ? " · " + (it.kind === "ask" ? "from " : "") + it.who : "")));
+      tx.appendChild(meta);
       row.appendChild(tx);
       box.appendChild(row);
     });

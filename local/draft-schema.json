@@ -1,7 +1,11 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["suggestions", "skipped"],
+  "required": [
+    "suggestions",
+    "asks",
+    "skipped"
+  ],
   "properties": {
     "suggestions": {
       "type": "array",
@@ -9,20 +13,132 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source", "to", "about", "ref", "urgency", "body", "replyingTo"],
+        "required": [
+          "source",
+          "to",
+          "about",
+          "ref",
+          "urgency",
+          "body",
+          "replyingTo"
+        ],
         "properties": {
-          "source": { "enum": ["gmail", "slack"] },
-          "to": { "type": "string" },
-          "about": { "type": "string" },
-          "client": { "type": ["string", "null"] },
-          "ref": { "type": "string" },
-          "urgency": { "enum": ["high", "normal", "low"] },
-          "subject": { "type": ["string", "null"] },
-          "body": { "type": "string" },
-          "replyingTo": { "type": "string" }
+          "source": {
+            "enum": [
+              "gmail",
+              "slack"
+            ]
+          },
+          "to": {
+            "type": "string"
+          },
+          "about": {
+            "type": "string"
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "urgency": {
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ]
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "replyingTo": {
+            "type": "string"
+          }
         }
       }
     },
-    "skipped": { "type": "array", "items": { "type": "string" } }
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "asks": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "from",
+          "what",
+          "due",
+          "dueText",
+          "ref",
+          "quote"
+        ],
+        "properties": {
+          "source": {
+            "enum": [
+              "slack",
+              "gmail",
+              "meeting"
+            ]
+          },
+          "from": {
+            "type": "string"
+          },
+          "what": {
+            "type": "string"
+          },
+          "due": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dueText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "type": "string"
+          },
+          "askedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
   }
 }

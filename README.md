@@ -87,6 +87,16 @@ Set-up:
 Log: `~/.foundry-drafter/drafter.log`. Edit `local/prompt.md` (suggestions) or `local/place.md`
 (saving drafts) to change how they work.
 
+### On you: what's been asked of you
+
+The hourly job also collects every request or deadline someone has given you in the last 3 days,
+from Slack, Gmail, Foundry meeting notes and Claude Meetings action items. Each one carries the
+person's exact words, so a made-up item can't slip in. The wallpaper's **On you** card mixes these
+with what you've promised in Foundry, soonest deadline first; **All ↗** opens `<address>/asks?k=…`,
+grouped Late / Today / This week / Later / No date, where you can mark one **Done**, **Add to my
+week** (a Foundry commitment due that day) or **Not for me**. A decision sticks: a later scan finding
+the same message won't bring it back.
+
 ### Your week
 
 **This week** (under the dial) is Monday to Friday, or next week at the weekend: meetings per day,

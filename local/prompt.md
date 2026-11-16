@@ -51,7 +51,26 @@ guessing.
 - Slack replies: one to three short lines, no sign-off.
 - If a full answer isn't possible yet, write an honest holding reply that says when he'll come back.
 
-## 4. Report back
+## 4. Collect what's been asked of Dan
+
+Separately from replies, list every open request or deadline someone has given Dan in the **last
+3 days**. Look in:
+- Slack and Gmail (the same messages as above, including ones that don't need a written reply,
+  like "can you sign off X by Friday");
+- meeting notes: Foundry's `find_meetings` for the clients that came up, and, if you have the
+  Meetings tools, `list_meetings` then `get_meeting_action_items` for meetings in the last 3 days.
+  Include action items assigned to Dan or clearly needing him.
+
+Rules:
+- Only things asked **of Dan** that he hasn't visibly done or answered since.
+- `quote` must be the person's (or the action item's) exact words. No quote, no item.
+- `due` is an ISO date (YYYY-MM-DD) when the deadline is clear; turn "Friday" into the actual date
+  using today's date below. Otherwise `due: null` and put their words in `dueText` (or null).
+- `what` is under 14 words, written as an action for Dan ("Sign off the 3.4 release notes").
+- `ref`: Gmail thread id, Slack `<channel id>:<message ts>`, or `meeting:<meeting id>:<n>`.
+- `link`: a permalink if the tool gives one, else null.
+
+## 5. Report back
 
 Return JSON matching the schema you've been given:
 - `suggestions`: one entry per reply you suggest.
@@ -64,6 +83,9 @@ Return JSON matching the schema you've been given:
   - `subject`: for Gmail, the thread's subject (with "Re: " if it isn't already); null for Slack
   - `body`: the full reply text, exactly as Dan would send it, in his voice (section 3)
   - `replyingTo`: one line, in your own words, on what they asked, so Dan has context when reviewing
+- `asks`: the list from section 4, each with `source` ("slack", "gmail" or "meeting"), `from`,
+  `what`, `due`, `dueText`, `client`, `ref`, `link`, `quote` and `askedAt` (ISO time of the
+  message or meeting).
 - `skipped`: short notes on what you skipped and why.
 
 If a tool failed, say so in `skipped`; don't pretend it worked.

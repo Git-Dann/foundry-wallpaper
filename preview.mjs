@@ -54,6 +54,12 @@ const sample = () => ({
     { id: "s2", state: "pending", source: "slack", to: "Syed", about: "Friday works, 2pm UK", client: "Coachman", ref: "D1:2", urgency: "normal", subject: null, replyingTo: "Syed asked if the Coachman call can move to Friday.", body: "Friday works. 2pm UK?", createdAt: ago(55) },
     { id: "s3", state: "accepted", source: "gmail", to: "Sarah Chen", about: "Thanks for the notes, proposal by Friday", client: "Valu", ref: "t2", urgency: "normal", subject: "Re: Discovery call notes", replyingTo: "Sarah sent notes from the discovery call.", body: "Thanks Sarah, these are great. You'll have the proposal by Friday.\n\nDan", createdAt: ago(90) },
   ] },
+  asks: { ok: true, checkedAt: ago(30), items: [
+    { id: "a1", state: "open", source: "slack", from: "Luke McFarland", what: "Review the profile page animation and send thoughts", due: at(0,0).slice(0,10), dueText: "this afternoon", client: "Wedge", ref: "C1:1", link: "https://example.slack.com/x", quote: "can you take a look at the animation as well and let me know your thoughts", askedAt: ago(200) },
+    { id: "a2", state: "open", source: "gmail", from: "David Hanson", what: "Add the _twilio TXT DNS record for KitFlare", due: null, dueText: null, client: "KitFlare", ref: "t9", link: null, quote: "I need your help in updating TXT DNS records for the host _twilio", askedAt: ago(60) },
+    { id: "a3", state: "open", source: "slack", from: "Tahir", what: "Decide how to handle a duplicate Stripe subscription", due: at(0,0,-3).slice(0,10), dueText: null, client: "Fellas Loaded", ref: "C2:2", link: null, quote: "Should I cancel the Stripe subscription and keep the in-app subscription active", askedAt: ago(4000) },
+    { id: "a4", state: "open", source: "meeting", from: "Weekly sync", what: "Send Coachman the phase 2 estimate", due: at(0,0,3).slice(0,10), dueText: "by Thursday", client: "Coachman", ref: "m:1", link: null, quote: "Dan to send the phase 2 estimate by Thursday", askedAt: ago(3000) },
+  ] },
   monitors: { ok: true, total: 18, up: 16, down: [], trouble: [{ client: "Fellas Loaded", name: "Analytics", state: "flaky" }, { client: "Wedge", name: "Course API", state: "slow" }],
     dots: [...Array(16).fill("up"), "flaky", "slow"], incidents: 0 },
 });
@@ -75,7 +81,7 @@ if (process.argv.includes("--live") && !LIVE) {
 
 // Live reload: the page holds an event stream open and reloads when page.html changes.
 const listeners = new Set();
-for (const f of ["./src/page.html", "./src/review.html", "./src/controller.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
+for (const f of ["./src/page.html", "./src/review.html", "./src/controller.html", "./src/asks.html"]) watch(new URL(f, import.meta.url), () => { for (const res of listeners) res.write("data: reload\n\n"); });
 const RELOADER = `<script>new EventSource("/__reload").onmessage=function(){location.reload()};</script>`;
 
 createServer(async (req, res) => {
@@ -107,7 +113,8 @@ createServer(async (req, res) => {
   res.setHeader("cache-control", "no-store");
   if (u.pathname === "/api/stamp") { res.setHeader("content-type", "application/json"); return res.end('{"stamp":"1"}'); }
   if (u.pathname.startsWith("/api/tasks")) { res.setHeader("content-type", "application/json"); return res.end('{"ok":true,"repeatStored":"wallpaper"}'); }
-  const file = u.pathname === "/review" ? "./src/review.html" : u.pathname === "/controller" ? "./src/controller.html" : "./src/page.html";
+  if (u.pathname.startsWith("/api/asks")) { res.setHeader("content-type", "application/json"); return res.end('{"ok":true,"state":"done"}'); }
+  const file = u.pathname === "/review" ? "./src/review.html" : u.pathname === "/controller" ? "./src/controller.html" : u.pathname === "/asks" ? "./src/asks.html" : "./src/page.html";
   if (u.pathname === "/api/drafts/decide") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ ok: true, state: "accepted" })); }
   res.end(readFileSync(new URL(file, import.meta.url), "utf8").replace("</body>", RELOADER + "</body>"));
 }).listen(Number(process.env.PORT || 8788), () =>
