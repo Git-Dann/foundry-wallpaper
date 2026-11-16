@@ -69,9 +69,12 @@ Slack or Foundry.
 - **Usage** (every 5 minutes): sends your Claude and Codex plan usage to the wallpaper's
   **Claude · Codex** card, showing the 5-hour and weekly windows, how much is used and when each
   resets. It calls no model, so it costs nothing.
-  - Claude's figures come from Claude Code's status line, which `--install` sets up (unless you
-    already have one, in which case it tells you). They update whenever you use Claude Code.
-  - Codex's come from its session logs in `~/.codex/sessions`, so they update whenever you use Codex.
+  - Every 5 minutes it asks Claude and Codex directly, using the sign-ins Claude Code and Codex
+    already keep on your Mac (Claude Code's is in the Keychain: macOS asks once whether `security`
+    may read it, so choose **Always Allow**). Those sign-ins only go to Anthropic and OpenAI.
+  - If a direct read fails, it falls back to the last figures Claude Code's status line saved
+    (which `--install` sets up) or the newest Codex session log, and notes that in the log.
+  - `./local/report-usage.sh --debug` shows what each source returned, without sending anything.
   - A reading older than 6 hours shows its age in amber. A window whose reset time has passed
     shows as 0%.
 
