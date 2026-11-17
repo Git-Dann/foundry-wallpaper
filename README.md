@@ -16,7 +16,11 @@ and says so on the wallpaper. A source that can't be read never shows as "nothin
   credentials are Gitwork's. Which Cloudflare account hosts it doesn't change what it can read.
 - The wallpaper link is `<address>/?k=<PAGE_KEY>`. Without the key every route answers 404.
 - Options: `&discreet=1` blurs names and subjects (for screen sharing); `&still=1` stops the
-  background moving.
+  background moving; `&pk=10-19` sets the Pakistan team's working hours in Pakistan time
+  (default 9-18). They show as a thin green band on the dial and as "team on till …" under the
+  Pakistan clock, both in UK time.
+- The centre also shows how much free time you have around the next meeting, and once the day's
+  meetings are done, the first one on your next working day.
 - Secrets must be type **Secret**, never Variable: a deploy resets plain variables to what's in
   `wrangler.toml`, and a Variable's value is shown to anyone with dashboard access.
 

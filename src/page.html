@@ -84,7 +84,7 @@ body {
 
 /* ---------- the dial ---------- */
 .dialWrap { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 2.4vh, 28px); height: 100%; min-height: 0; }
-.dialBox { container-type: inline-size; position: relative; width: min(100%, calc(100vh - var(--safe-top) - var(--safe-bottom) - clamp(160px, 19vh, 230px))); aspect-ratio: 1; flex: none; }
+.dialBox { container-type: inline-size; position: relative; width: min(100%, 980px, calc((100vh - var(--safe-top) - var(--safe-bottom) - clamp(160px, 19vh, 230px)) * .86)); aspect-ratio: 1; flex: none; }
 .dial { width: 100%; height: 100%; overflow: visible; display: block; }
 .weekCard { width: min(100%, 900px); flex: none; }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin-top: calc(-1 * clamp(4px, 1vh, 12px)); font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
@@ -93,8 +93,11 @@ body {
 .legend .k-int { background: linear-gradient(90deg, #60a5fa, #6366f1); }
 .legend .k-ext { background: linear-gradient(90deg, #fbbf24, #ff7a6b); }
 .legend .k-work { background: rgba(233,236,248,.22); }
-.legend .k-now { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.8); }
+.legend .k-now { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #070b18, 0 0 0 3px rgba(255,255,255,.5); }
 .legend .k-pk { width: 8px; height: 8px; border-radius: 50%; border: 2px solid #3dd68c; }
+.legend .k-pkw { width: 16px; height: 3px; border-radius: 2px; background: rgba(61,214,140,.55); }
+.free { font-family: var(--mono); font-size: max(10px, 1.35cqw); letter-spacing: .14em; text-transform: uppercase; color: var(--green); margin-top: 10px; }
+.tmrw { font-size: max(11.5px, 1.9cqw); color: var(--ink-2); margin-top: 6px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .wd.past { opacity: .45; }
 .week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .add-link { color: var(--ink-2); text-decoration: none; }
@@ -114,7 +117,8 @@ body {
 .clk .val { font-family: var(--mono); font-weight: 500; font-size: 5.4cqw; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 .clk.pk .val { color: var(--ink-2); }
 .clk .colon { opacity: .5; animation: blink 2s steps(1) infinite; }
-.clk .off { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--ink-4); }
+.clk .off { font-family: var(--mono); font-size: max(10px, 1.25cqw); letter-spacing: .12em; color: var(--ink-3); white-space: nowrap; }
+.clk .off.on { color: var(--green); }
 @keyframes blink { 50% { opacity: .15; } }
 .next { margin-top: 3.4cqw; padding-top: 2.6cqw; border-top: 1px solid var(--line); }
 .next-title { font-size: max(13px, 2.6cqw); font-weight: 500; margin-top: 8px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -127,7 +131,6 @@ body {
 .chip.live { border-color: rgba(255,122,107,.6); color: var(--coral); background: rgba(255,122,107,.1); }
 .chip.ok { border-color: rgba(61,214,140,.5); color: var(--green); background: rgba(61,214,140,.08); }
 
-.nowDot { filter: drop-shadow(0 0 10px rgba(255,255,255,.9)); }
 .arc { transition: opacity .6s; }
 
 /* ---------- side instruments ---------- */
@@ -270,6 +273,7 @@ body {
       <span><i class="k-work"></i>Working hours</span>
       <span><i class="k-now"></i>Now</span>
       <span><i class="k-pk"></i>Pakistan now</span>
+      <span><i class="k-pkw"></i>Pakistan hours</span>
     </div>
     <div class="card weekCard">
       <div class="card-head"><span>05 // This week</span><span id="weekState"></span></div>
@@ -369,6 +373,17 @@ body {
   // ---------- clock ----------
   // Clock times are always 24-hour. "Here" is the Mac's own zone (UK); Pakistan is fixed.
   var PK_TZ = "Asia/Karachi";
+  // Pakistan team's working hours in Pakistan time; change with &pk=10-19 in the wallpaper link.
+  var PK_HOURS = (function () { var m = /^(\d{1,2})-(\d{1,2})$/.exec(params.get("pk") || ""); return m && +m[1] < +m[2] && +m[2] <= 24 ? [+m[1], +m[2]] : [9, 18]; })();
+  function pkOffsetHours(d) { var z = zoned(PK_TZ, d), diff = (z.h * 60 + z.m) - (d.getHours() * 60 + d.getMinutes()); if (diff > 720) diff -= 1440; if (diff < -720) diff += 1440; return diff / 60; }
+  // Is the Pakistan team at work? Times are shown in UK time, so "till 13:00" means 13:00 here.
+  function pkTeam(d) {
+    var z = zoned(PK_TZ, d), hNow = z.h + z.m / 60, wd = new Date(d.toLocaleString("en-US", { timeZone: PK_TZ })).getDay();
+    if (wd === 0 || wd === 6) return { on: false, text: "team off" };
+    if (hNow >= PK_HOURS[0] && hNow < PK_HOURS[1]) return { on: true, text: "team on till " + hm(new Date(d.getTime() + (PK_HOURS[1] - hNow) * 3600000)) };
+    if (hNow < PK_HOURS[0]) return { on: false, text: "team in at " + hm(new Date(d.getTime() + (PK_HOURS[0] - hNow) * 3600000)) };
+    return { on: false, text: "team off" };
+  }
   function zoned(tz, d) {
     var parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d);
     var get = function (t) { return Number((parts.find(function (p) { return p.type === t; }) || {}).value || 0); };
@@ -401,7 +416,10 @@ body {
     var box = document.getElementById("clocks"); clear(box);
     box.appendChild(clockEl(hereLabel(), "#ffffff", now.getHours(), now.getMinutes(), null));
     var pk = zoned(PK_TZ, now);
-    box.appendChild(clockEl("PAKISTAN", "#3dd68c", pk.h, pk.m, offsetHours(PK_TZ, now), "pk"));
+    var team = pkTeam(now);
+    var pkc = clockEl("PAKISTAN", "#3dd68c", pk.h, pk.m, offsetHours(PK_TZ, now) + " · " + team.text, "pk");
+    if (team.on) pkc.lastChild.classList.add("on");
+    box.appendChild(pkc);
   }
   function isoWeek(d) {
     var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -426,9 +444,6 @@ body {
     el("stop", { offset: "0", "stop-color": "#60a5fa" }, g1); el("stop", { offset: "1", "stop-color": "#6366f1" }, g1);
     var g2 = el("linearGradient", { id: "gExt", x1: "0", y1: "0", x2: "1", y2: "1" }, defs);
     el("stop", { offset: "0", "stop-color": "#fbbf24" }, g2); el("stop", { offset: "1", "stop-color": "#ff7a6b" }, g2);
-    var glow = el("filter", { id: "glow", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
-    el("feGaussianBlur", { stdDeviation: "9", result: "b" }, glow);
-    var m = el("feMerge", {}, glow); el("feMergeNode", { in: "b" }, m); el("feMergeNode", { in: "SourceGraphic" }, m);
     var halo = el("radialGradient", { id: "halo" }, defs);
     el("stop", { offset: "0", "stop-color": "#3b82f6", "stop-opacity": ".22" }, halo);
     el("stop", { offset: "1", "stop-color": "#3b82f6", "stop-opacity": "0" }, halo);
@@ -450,19 +465,31 @@ body {
       t.textContent = pad(hh);
     });
 
-    // meetings
+    // Pakistan working hours, as a thin green band just outside the ring (in UK time).
+    var pkOff = pkOffsetHours(now), pkS = PK_HOURS[0] - pkOff, pkE = PK_HOURS[1] - pkOff;
+    [[pkS, pkE]].forEach(function (r) {
+      var s0 = ((r[0] % 24) + 24) % 24, e0 = s0 + (r[1] - r[0]);
+      var segs = e0 > 24 ? [[s0, 24], [0, e0 - 24]] : [[s0, e0]];
+      segs.forEach(function (sg) { el("path", { d: arcPath(R_ARC + R_ARC_W / 2 + 9, sg[0], sg[1]), fill: "none", stroke: "rgba(61,214,140,.45)", "stroke-width": 4, "stroke-linecap": "round" }, svg); });
+    });
+
+    // Meetings. The one on now is drawn the same width as the rest: the part already gone is
+    // dimmed and a thin outer line marks it. (No blur filter: Safari, which Plash uses, draws SVG
+    // filters at low resolution, which looked like a magnifier wherever the hand crossed it.)
     todaysEvents().forEach(function (e) {
       var s = new Date(e.start), en = new Date(e.end);
       var h0 = hourOf(s), h1 = Math.max(hourOf(en), h0 + 0.12);
       if (dayKey(en) !== dayKey(s)) h1 = 23.99;
       var past = en < now, live = s <= now && en > now;
-      var path = el("path", {
-        d: arcPath(R_ARC, h0 + 0.02, h1 - 0.02), fill: "none",
-        stroke: e.external ? "url(#gExt)" : "url(#gInt)", "stroke-width": live ? R_ARC_W + 10 : R_ARC_W - 6,
-        "stroke-linecap": "round", class: "arc", opacity: past ? .28 : 1,
-      }, svg);
-      if (live) path.setAttribute("filter", "url(#glow)");
-      var tt = el("title", {}, path); tt.textContent = hm(s) + " " + e.title;
+      var paint = e.external ? "url(#gExt)" : "url(#gInt)", w = R_ARC_W - 6, a0 = h0 + 0.02, a1 = h1 - 0.02;
+      var title = hm(s) + " " + e.title;
+      if (live && nowH - a0 > 0.03 && a1 - nowH > 0.03) {
+        el("path", { d: arcPath(R_ARC, a0, nowH), fill: "none", stroke: paint, "stroke-width": w, "stroke-linecap": "round", class: "arc", opacity: .4 }, svg);
+        el("title", {}, el("path", { d: arcPath(R_ARC, nowH, a1), fill: "none", stroke: paint, "stroke-width": w, "stroke-linecap": "round", class: "arc" }, svg)).textContent = title;
+      } else {
+        el("title", {}, el("path", { d: arcPath(R_ARC, a0, a1), fill: "none", stroke: paint, "stroke-width": w, "stroke-linecap": "round", class: "arc", opacity: past ? .28 : 1 }, svg)).textContent = title;
+      }
+      if (live) el("path", { d: arcPath(R_ARC - R_ARC_W / 2 - 8, a0, a1), fill: "none", stroke: e.external ? "#fbbf24" : "#60a5fa", "stroke-width": 3, "stroke-linecap": "round", opacity: .9 }, svg);
     });
 
     // Pakistan's "now", as a hollow green marker on the outer ring
@@ -470,12 +497,12 @@ body {
     el("circle", { cx: pkp[0], cy: pkp[1], r: 9, fill: "#060a18", stroke: "#3dd68c", "stroke-width": 3 }, svg);
     var pkt = el("text", { x: pkl[0], y: pkl[1] + 4, "text-anchor": "middle", fill: "#3dd68c", style: "fill:#3dd68c" }, svg); pkt.textContent = "PK";
 
-    // now hand
+    // Now hand: a dark outline under a white line keeps it crisp over any colour.
     var inner = pt(R_ARC - 60, nowH), outer = pt(R_TICK + 6, nowH);
-    el("line", { x1: inner[0], y1: inner[1], x2: outer[0], y2: outer[1], stroke: "rgba(255,255,255,.85)", "stroke-width": 2, "stroke-linecap": "round" }, svg);
+    el("line", { x1: inner[0], y1: inner[1], x2: outer[0], y2: outer[1], stroke: "#070b18", "stroke-width": 6, "stroke-linecap": "round", opacity: .85 }, svg);
+    el("line", { x1: inner[0], y1: inner[1], x2: outer[0], y2: outer[1], stroke: "#fff", "stroke-width": 2, "stroke-linecap": "round" }, svg);
     var dot = pt(R_ARC, nowH);
-    el("circle", { cx: dot[0], cy: dot[1], r: 22, fill: "rgba(255,255,255,.12)" }, svg);
-    el("circle", { cx: dot[0], cy: dot[1], r: 9, fill: "#fff", class: "nowDot" }, svg);
+    el("circle", { cx: dot[0], cy: dot[1], r: 11, fill: "#fff", stroke: "#070b18", "stroke-width": 4 }, svg);
   }
 
   function renderNext() {
@@ -493,6 +520,15 @@ body {
       box.appendChild(h("div", "next-title", "Nothing else in the diary"));
       var left = todaysEvents().length;
       box.appendChild(h("div", "next-meta")).appendChild(h("span", "chip ok", left ? left + " meeting" + (left > 1 ? "s" : "") + " done" : "Clear day"));
+      // First thing on the next working day.
+      var nxt = upcoming.filter(function (x) { return dayKey(new Date(x.start)) !== key; })[0];
+      if (nxt) {
+        var ns = new Date(nxt.start), tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        var label = dayKey(ns) === dayKey(tomorrow) ? "Tomorrow" : ns.toLocaleDateString("en-GB", { weekday: "short" });
+        var tm = h("div", "tmrw private", label + " " + hm(ns) + " · " + nxt.title);
+        tm.style.marginTop = "12px";
+        box.appendChild(tm);
+      }
       return;
     }
     var s = Date.parse(e.start), live = s <= now;
@@ -504,6 +540,12 @@ body {
     if (e.people > 1) meta.appendChild(h("span", "chip", e.people + " people"));
     if (e.meet) meta.appendChild(h("span", "chip", "Meet"));
     box.appendChild(meta);
+    // Free time before it (or after it, if it's on now), within working hours.
+    var gapStart = live ? Date.parse(e.end) : now, gapEnd = today[live ? 1 : 0] && !live ? s : (today[1] ? Date.parse(today[1].start) : null);
+    var eod = new Date(); eod.setHours(17, 30, 0, 0);
+    if (gapEnd == null) gapEnd = eod.getTime();
+    var free = Math.min(gapEnd, eod.getTime()) - gapStart;
+    if (free >= 30 * 60000) box.appendChild(h("div", "free", (live ? "Then free " : "Free ") + relMins(free) + (live ? " after" : " before it")));
     var after = today.length - 1;
     if (after > 0) box.appendChild(h("div", "eyebrow", "+" + after + " more today")).style.marginTop = "12px";
   }
