@@ -210,6 +210,12 @@ body {
 .mon-sub { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 2px; padding-left: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mon.bad .mon-sub { color: #ff9a8d; }
 .mon.warn .mon-sub { color: var(--amber); }
+.ours { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: rgba(96,165,250,.06); border: 1px solid rgba(96,165,250,.18); }
+.ours .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); width: 100%; }
+.svc { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; min-width: 0; }
+.svc .ms { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.svc.bad .ms { color: #ff9a8d; }
+.svc.warn .ms { color: var(--amber); }
 .mon-more { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); display: flex; align-items: center; padding-left: 4px; }
 
 .strip-labels { position: relative; height: 14px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
@@ -808,6 +814,20 @@ body {
     var sub = (s.groups || []).length + " clients · " + s.total + " services" + (open ? " · " + open + " incident" + (open > 1 ? "s" : "") + " not acknowledged" : "");
     wrap.appendChild(h("div", "sys-sub", sub));
     box.appendChild(wrap);
+
+    // Our own services, always shown and named.
+    if ((s.ours || []).length) {
+      var ours = h("div", "ours");
+      ours.appendChild(h("span", "lbl", "Our services"));
+      s.ours.forEach(function (x) {
+        var sv = h("span", "svc" + (x.state === "down" ? " bad" : x.state === "up" ? "" : " warn"));
+        var d = h("span", "mon-dot"); d.style.background = MON_COLOUR[x.state] || MON_COLOUR.unknown; sv.appendChild(d);
+        sv.appendChild(document.createTextNode(x.name));
+        sv.appendChild(h("span", "ms", x.state === "up" ? msText(x.ms) : (MON_WORD[x.state] || x.state) + (x.state === "down" && x.code ? " " + x.code : "")));
+        ours.appendChild(sv);
+      });
+      box.appendChild(ours);
+    }
 
     var groups = s.groups || [];
     if (!groups.length) return;

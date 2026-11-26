@@ -371,6 +371,7 @@ async function readMonitors(env) {
   const RANK = { down: 0, stale: 1, flaky: 2, slow: 3, unknown: 4, up: 5 };
   const services = [];
   const groups = [];
+  const ours = [];
   for (const client of body.clients ?? []) {
     const mine = [];
     for (const m of client.monitors ?? []) {
@@ -389,6 +390,11 @@ async function readMonitors(env) {
       mine.push(svc);
     }
     if (!mine.length) continue;
+    // Our own services (Foundry, the website) are listed one by one, not as a client tile.
+    if ((client.slug ?? "") === (env.OUR_CLIENT || "gitwork")) {
+      ours.push(...mine.map((x) => ({ name: x.name, state: x.state, ms: x.ms, code: x.code })));
+      continue;
+    }
     mine.sort((x, y) => RANK[x.state] - RANK[y.state]);
     const live = mine.filter((x) => x.ms != null && x.state !== "stale");
     groups.push({
@@ -411,6 +417,7 @@ async function readMonitors(env) {
     trouble: services.filter((x) => ["flaky", "slow", "stale"].includes(x.state)),
     dots: services.map((x) => x.state),
     groups,
+    ours,
     incidents: (body.incidents ?? []).map((i) => ({ client: i.clientName ?? null, acknowledged: !!i.acknowledgedAt })).slice(0, 10),
     link: `${foundryBase(env)}/app/monitors`,
   };

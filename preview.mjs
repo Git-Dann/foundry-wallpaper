@@ -60,10 +60,10 @@ const sample = () => ({
   ] },
   monitors: { ok: true, total: 30, up: 28, down: [], trouble: [{ client: "Fellas Loaded", name: "Analytics", state: "flaky" }, { client: "Wedge", name: "Course API", state: "slow" }],
     dots: [...Array(28).fill("up"), "flaky", "slow"], incidents: [{ client: "Fellas Loaded", acknowledged: false }], link: "https://foundry.gitwork.co.uk/app/monitors",
+    ours: [{ name: "Foundry — app", state: "up", ms: 125, code: 200 }, { name: "Foundry — marketing", state: "up", ms: 211, code: 200 }, { name: "gitwork.co.uk", state: "up", ms: 345, code: 200 }],
     groups: [
       { client: "Fellas Loaded", total: 3, up: 2, worst: "flaky", ms: 340, problems: [{ name: "Analytics", state: "flaky", ms: 900, code: 200 }] },
       { client: "Wedge", total: 4, up: 3, worst: "slow", ms: 2400, problems: [{ name: "Course API", state: "slow", ms: 2400, code: 200 }] },
-      { client: "Gitwork", total: 3, up: 3, worst: "up", ms: 345, problems: [] },
       { client: "After Desk", total: 9, up: 9, worst: "up", ms: 410, problems: [] },
       { client: "Coachman", total: 2, up: 2, worst: "up", ms: 220, problems: [] },
       { client: "Big Wedge Golf", total: 2, up: 2, worst: "up", ms: 180, problems: [] },
