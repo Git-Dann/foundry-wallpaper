@@ -13,6 +13,7 @@
 //   GET /asks             everything people have asked of you, with deadlines
 //   PUT /api/asks         the drafter reports asks it found   ·   POST /api/asks/decide  done / dismiss / add to week
 //   PUT /api/usage        the Mac reports Claude and Codex plan usage (percent used, reset times)
+//   PUT /api/deploys      the Mac reports Foundry's recent deploy runs (from GitHub Actions, via gh)
 //
 // Secrets (Cloudflare → Workers → foundry-wallpaper → Settings → Variables and secrets):
 //   PAGE_KEY              the long random string in your wallpaper link
@@ -61,6 +62,7 @@ export default {
       if (url.pathname === "/api/asks/decide" && req.method === "POST") return await decideAsk(req, env);
       if (url.pathname === "/api/stamp") return json({ stamp: (await env.STORE.get("stamp")) ?? "0" });
       if (url.pathname === "/api/usage" && req.method === "PUT") return await putUsage(req, env);
+      if (url.pathname === "/api/deploys" && req.method === "PUT") return await putDeploys(req, env);
       if (url.pathname === "/api/tasks" && req.method === "POST") return await addTask(req, env);
       if (url.pathname === "/api/tasks/done" && req.method === "POST") return await doneTask(req, env);
       return text("Not found", 404);
@@ -163,7 +165,7 @@ async function loadAll(env, ctx, fresh) {
     if (cached) return cached;
   }
   const g = await googleToken(env);
-  const [calendar, mail, commitments, monitors, slack, usage, asks] = await Promise.all([
+  const [calendar, mail, commitments, monitors, slack, usage, asks, deploys] = await Promise.all([
     settle(() => (g.ok ? readCalendar(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => (g.ok ? readGmail(g.token) : Promise.reject(new SourceError(g.reason)))),
     settle(() => readCommitments(env)),
@@ -171,8 +173,9 @@ async function loadAll(env, ctx, fresh) {
     settle(() => readSlack(env)),
     settle(() => readUsage(env)),
     settle(() => readAsks(env)),
+    settle(() => readDeploys(env)),
   ]);
-  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, usage, asks };
+  const data = { readAt: new Date().toISOString(), calendar, mail, commitments, monitors, slack, usage, asks, deploys };
   ctx.waitUntil(env.STORE.put("data:cache", JSON.stringify(data), { expirationTtl: CACHE_TTL }));
   return data;
 }
@@ -775,6 +778,62 @@ async function readUsage(env) {
   const v = await env.STORE.get(USAGE_KEY, "json");
   if (!v) throw new SourceError("not_set_up");
   return v;
+}
+
+// ---------- Foundry deploys ----------
+//
+// The Mac reads the deploy workflow's recent runs with `gh` every minute (local/report-deploys.sh)
+// and sends them here. Only run number, state, short commit, title and times are kept.
+
+const DEPLOYS_KEY = "deploys";
+
+function cleanRun(r) {
+  const t = (v) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : null);
+  if (!r || typeof r !== "object") return null;
+  return {
+    n: Number.isFinite(r.n) ? r.n : null,
+    status: ["queued", "in_progress", "completed", "waiting", "pending", "requested"].includes(r.status) ? r.status : "completed",
+    conclusion: typeof r.conclusion === "string" ? r.conclusion.slice(0, 20) : null,
+    sha: typeof r.sha === "string" ? r.sha.slice(0, 7) : null,
+    title: clip(r.title, 160),
+    started: t(r.started),
+    updated: t(r.updated),
+    url: typeof r.url === "string" && r.url.startsWith("https://github.com/") ? r.url.slice(0, 300) : null,
+  };
+}
+
+function summariseDeploys(runs) {
+  const secs = (r) => (Date.parse(r.updated) - Date.parse(r.started)) / 1000;
+  const ok = runs.filter((r) => r.status === "completed" && r.conclusion === "success" && r.started && r.updated);
+  const durations = ok.slice(0, 10).map(secs).filter((x) => x > 0).sort((a, b) => a - b);
+  const avgSec = durations.length ? Math.round(durations[Math.floor(durations.length / 2)]) : null; // median
+  const running = runs.find((r) => r.status === "in_progress") ?? null;
+  const queued = runs.filter((r) => ["queued", "waiting", "pending", "requested"].includes(r.status)).length;
+  // A cancelled run is a deploy superseded in the queue, not a failure; skip it.
+  const done = runs.filter((r) => r.status === "completed" && r.conclusion !== "cancelled" && r.conclusion !== "skipped");
+  const live = ok[0] ?? null;
+  const lastDone = done[0] ?? null;
+  const failed = lastDone && lastDone.conclusion !== "success" ? lastDone : null;
+  return { state: running ? "deploying" : queued ? "queued" : failed ? "failed" : "live", running, queued, live, failed, avgSec };
+}
+
+async function putDeploys(req, env) {
+  const body = await req.json().catch(() => null);
+  const runs = Array.isArray(body?.runs) ? body.runs.slice(0, 30).map(cleanRun).filter(Boolean) : null;
+  if (!runs) return text('Expected { "runs": [...] }', 400);
+  const prev = await env.STORE.get(DEPLOYS_KEY, "json");
+  const next = { at: new Date().toISOString(), repo: clip(body.repo, 100), runs };
+  await env.STORE.put(DEPLOYS_KEY, JSON.stringify(next));
+  // Only wake the wallpaper when something actually changed, not on every report.
+  const sig = (v) => (v ? JSON.stringify(v.runs.slice(0, 3).map((r) => [r.n, r.status, r.conclusion])) : "");
+  if (sig(prev) !== sig(next)) await changed(env);
+  return json({ ok: true, state: summariseDeploys(runs).state });
+}
+
+async function readDeploys(env) {
+  const v = await env.STORE.get(DEPLOYS_KEY, "json");
+  if (!v) throw new SourceError("not_set_up");
+  return { at: v.at, repo: v.repo, ...summariseDeploys(v.runs) };
 }
 
 // ---------- responses ----------

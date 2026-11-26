@@ -6,6 +6,7 @@
 #                                          and lists what people have asked of you, with their words.
 #   usage  (every 5 minutes)               sends your Claude and Codex plan usage. Doesn't call any
 #                                          model, so it costs nothing.
+#   deploys (every minute)                 sends Foundry's deploy runs, read with your gh login.
 #
 #   ./draft-replies.sh            collect asks now
 #   ./draft-replies.sh --usage    send usage now
@@ -96,9 +97,10 @@ case "${1:-}" in
       P="$HOME/Library/LaunchAgents/$old.plist"
       [[ -f "$P" ]] && { launchctl unload "$P" 2>/dev/null || true; rm -f "$P"; }
     done
-    for job in asks usage; do
+    chmod +x "$HERE/report-deploys.sh"
+    for job in asks usage deploys; do
       PLIST="$HOME/Library/LaunchAgents/uk.co.gitwork.foundry-$job.plist"
-      sed "s#__SCRIPT__#$HERE/draft-replies.sh#; s#__USAGE__#$HERE/report-usage.sh#; s#__LOG__#$LOG#" "$HERE/uk.co.gitwork.foundry-$job.plist" > "$PLIST"
+      sed "s#__SCRIPT__#$HERE/draft-replies.sh#; s#__USAGE__#$HERE/report-usage.sh#; s#__DEPLOYS__#$HERE/report-deploys.sh#; s#__LOG__#$LOG#" "$HERE/uk.co.gitwork.foundry-$job.plist" > "$PLIST"
       launchctl unload "$PLIST" 2>/dev/null || true
       launchctl load "$PLIST"
     done
@@ -112,7 +114,8 @@ case "${1:-}" in
     else
       SL="You already have a Claude Code status line ($CURRENT), so it was left alone. Claude usage won't reach the wallpaper until you switch it to $HERE/usage-statusline.sh."
     fi
-    echo "Installed. Asks: hourly on weekdays, 07:00–19:00. Usage: every 5 minutes. $SL Log: $LOG"
+    command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || SL="$SL Foundry deploys need gh signed in: brew install gh, then gh auth login."
+    echo "Installed. Asks: hourly on weekdays, 07:00–19:00. Usage: every 5 minutes. Foundry deploys: every minute. $SL Log: $LOG"
     exit 0 ;;
   --scheduled)
     dow=$(date +%u); hr=$(date +%H)

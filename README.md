@@ -92,6 +92,13 @@ Set-up:
    removes the old suggested-replies jobs. Run it again after a `git pull` that changes the schedule.
 5. `./local/draft-replies.sh` collects asks now; `./local/draft-replies.sh --usage` sends usage now.
 
+- **Foundry deploys** (every minute): reads Foundry's deploy workflow runs from GitHub Actions
+  with your own `gh` login (the same source as your command centre), and sends them to the
+  wallpaper. Card 04 shows *Deploying <commit> · <title>* with progress against the usual build
+  time, otherwise what's live and how long ago, or the last failure. Needs `gh` signed in
+  (`brew install gh`, then `gh auth login`). `./local/report-deploys.sh --debug` shows what it reads.
+  A cancelled run is a deploy superseded in the queue, not a failure.
+
 Log: `~/.foundry-drafter/drafter.log`. Edit `local/asks.md` to change what counts as an ask.
 
 ### On you: what's been asked of you

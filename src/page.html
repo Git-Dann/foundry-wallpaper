@@ -124,9 +124,10 @@ body {
 .next-title { font-size: max(13px, 2.6cqw); font-weight: 500; margin-top: 8px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .next-meta { margin-top: 10px; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .chip {
-  font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-  padding: 4px 9px; border-radius: 6px; border: 1px solid var(--ink-4); color: var(--ink-2);
+  font-family: var(--mono); font-size: max(9px, 1.35cqw); letter-spacing: .1em; text-transform: uppercase;
+  padding: .35em .7em; border-radius: 6px; border: 1px solid var(--ink-4); color: var(--ink-2); white-space: nowrap;
 }
+.next-meta { flex-wrap: nowrap !important; gap: max(4px, .8cqw) !important; }
 .chip.hot { border-color: rgba(245,177,76,.55); color: var(--amber); background: rgba(245,177,76,.08); }
 .chip.live { border-color: rgba(255,122,107,.6); color: var(--coral); background: rgba(255,122,107,.1); }
 .chip.ok { border-color: rgba(61,214,140,.5); color: var(--green); background: rgba(61,214,140,.08); }
@@ -216,6 +217,17 @@ body {
 .svc .ms { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
 .svc.bad .ms { color: #ff9a8d; }
 .svc.warn .ms { color: var(--amber); }
+.deploy { width: 100%; display: grid; gap: 5px; padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px solid rgba(233,236,248,.07); }
+.deploy .dl { display: flex; align-items: center; gap: 7px; font-size: 12.5px; min-width: 0; }
+.deploy .dl .t { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deploy .dl .k { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); flex: none; }
+.deploy.going .dl .k { color: var(--amber); }
+.deploy.failed .dl .k { color: #ff9a8d; }
+.deploy .prog { height: 3px; border-radius: 2px; background: rgba(233,236,248,.08); overflow: hidden; }
+.deploy .prog i { display: block; height: 100%; background: linear-gradient(90deg, #f5b14c, #fbbf24); }
+.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.still .pulse { animation: none; }
 .mon-more { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); display: flex; align-items: center; padding-left: 4px; }
 
 .strip-labels { position: relative; height: 14px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
@@ -815,10 +827,12 @@ body {
     wrap.appendChild(h("div", "sys-sub", sub));
     box.appendChild(wrap);
 
-    // Our own services, always shown and named.
-    if ((s.ours || []).length) {
+    // Our own services, always shown and named, with Foundry's deploy state on top.
+    var dep = data.deploys;
+    if ((s.ours || []).length || (dep && dep.ok)) {
       var ours = h("div", "ours");
       ours.appendChild(h("span", "lbl", "Our services"));
+      if (dep && dep.ok) ours.appendChild(deployLine(dep));
       s.ours.forEach(function (x) {
         var sv = h("span", "svc" + (x.state === "down" ? " bad" : x.state === "up" ? "" : " warn"));
         var d = h("span", "mon-dot"); d.style.background = MON_COLOUR[x.state] || MON_COLOUR.unknown; sv.appendChild(d);
@@ -851,11 +865,42 @@ body {
       grid.appendChild(t);
     });
     box.appendChild(grid);
-    grid.dataset.total = groups.length;
+    grid.dataset.total = groups.length; grid.dataset.bad = bad;
   }
+  // Foundry's deploy: what's going out now (with progress against the usual build time), else
+  // what's live, else the last failure. Read from GitHub Actions by the Mac every minute.
+  function deployLine(d) {
+    var r = d.running, mins = function (sec) { return Math.max(1, Math.round(sec / 60)) + "m"; };
+    var cls = d.state === "deploying" || d.state === "queued" ? " going" : d.state === "failed" ? " failed" : "";
+    var box = h("div", "deploy" + cls);
+    var line = h("div", "dl");
+    var dot = h("span", "mon-dot" + (cls === " going" ? " pulse" : ""));
+    dot.style.background = cls === " going" ? "#f5b14c" : cls === " failed" ? "#ff5b5b" : "#3dd68c";
+    line.appendChild(dot);
+    var title, k;
+    if (r) {
+      var el2 = (Date.now() - Date.parse(r.started)) / 1000;
+      title = "Deploying " + (r.sha || "") + " · " + (r.title || "");
+      k = mins(el2) + (d.avgSec ? " of ~" + mins(d.avgSec) : "") + (d.queued ? " · +" + d.queued + " queued" : "");
+      line.appendChild(h("span", "t private", title)); line.appendChild(h("span", "k", k));
+      box.appendChild(line);
+      if (d.avgSec) { var pg = h("div", "prog"), fill = h("i"); fill.style.width = Math.min(97, Math.round(el2 / d.avgSec * 100)) + "%"; pg.appendChild(fill); box.appendChild(pg); }
+      return box;
+    }
+    if (d.state === "queued") { title = "Deploy queued"; k = d.queued + " waiting"; }
+    else if (d.failed) { title = "Deploy failed · " + (d.failed.title || ""); k = ago(d.failed.updated) + " ago"; }
+    else if (d.live) { title = "Foundry live · " + (d.live.sha || "") + " · " + (d.live.title || ""); k = ago(d.live.updated) + " ago"; }
+    else { title = "No deploys found"; k = ""; }
+    line.appendChild(h("span", "t private", title)); line.appendChild(h("span", "k", k));
+    var old = (Date.now() - Date.parse(d.at)) / 60000;
+    if (old > 10) line.appendChild(h("span", "k", "· as of " + ago(d.at)));
+    box.appendChild(line);
+    return box;
+  }
+
   // Make the right-hand column fit the screen by measuring it, not guessing from the window
   // height. Trims in order of what matters least; a client with a problem is never trimmed.
-  var FIT_STEPS = [["#mail .row", 3], ["#promised .promise", 2], ["#systems .mon:not(.bad):not(.warn)", 0], ["#mail .row", 2], ["#promised .promise", 1]];
+  var FIT_STEPS = [["#mail .row", 3], ["#promised .promise", 2], ["#systems .mon:not(.bad):not(.warn)", 0], ["#mail .row", 2], ["#promised .promise", 1], ["#systems .mon-sub", 0], ["#systems .mon", 0]];
   function fitSide() {
     var side = document.querySelector(".side");
     if (!side) return;
@@ -865,14 +910,23 @@ body {
       for (var i = list.length - 1; i >= step[1] && over(); i--) list[i].remove();
     });
     var grid = side.querySelector(".mon-grid");
-    if (grid) {
-      var left = Number(grid.dataset.total || 0) - grid.querySelectorAll(".mon").length;
-      if (left > 0) {
-        var more = h("div", "mon-more", "+" + left + " more, all up");
-        grid.appendChild(more);
-        if (over()) { var ok = grid.querySelectorAll(".mon:not(.bad):not(.warn)"); if (ok.length) { ok[ok.length - 1].remove(); more.textContent = "+" + (left + 1) + " more, all up"; } }
-      }
+    if (!grid) return;
+    var total = Number(grid.dataset.total || 0), bad = Number(grid.dataset.bad || 0);
+    var more = null;
+    var label = function () {
+      var tiles = grid.querySelectorAll(".mon"), left = total - tiles.length, badLeft = bad - grid.querySelectorAll(".mon.bad, .mon.warn").length;
+      if (left <= 0) { if (more) more.remove(); more = null; return; }
+      if (!more) { more = h("div", "mon-more"); grid.appendChild(more); }
+      more.textContent = "+" + left + " more" + (badLeft > 0 ? ", " + badLeft + " with a problem" : ", all up");
+    };
+    label();
+    // The count line itself takes space: keep trimming (healthy first) until everything fits.
+    while (over() && grid.querySelectorAll(".mon").length) {
+      var ok = grid.querySelectorAll(".mon:not(.bad):not(.warn)"), any = grid.querySelectorAll(".mon");
+      (ok.length ? ok[ok.length - 1] : any[any.length - 1]).remove();
+      label();
     }
+    if (over()) grid.style.display = "none";
   }
   window.addEventListener("resize", function () { if (data) renderAll(); });
 
