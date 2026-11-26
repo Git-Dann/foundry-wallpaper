@@ -199,6 +199,18 @@ body {
 @media (max-height: 860px) { .big { font-size: 40px; } .inbox-top { margin-bottom: 4px; } .bars { height: 30px; } .row { padding: 5px 0; } .promise { padding: 6px 0; } }
 .sys-head { font-family: var(--serif); font-size: clamp(19px, 2.3vh, 26px); line-height: 1.1; white-space: nowrap; }
 .sys-sub { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; line-height: 1.45; }
+.mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 12px; }
+.mon { min-width: 0; border-radius: 8px; padding: 6px 9px; background: rgba(255,255,255,.03); border: 1px solid rgba(233,236,248,.06); }
+.mon.bad { background: rgba(255,91,91,.08); border-color: rgba(255,91,91,.35); }
+.mon.warn { background: rgba(245,177,76,.07); border-color: rgba(245,177,76,.3); }
+.mon-top { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; }
+.mon-top .nm { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon-top .n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); flex: none; }
+.mon-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.mon-sub { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 2px; padding-left: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon.bad .mon-sub { color: #ff9a8d; }
+.mon.warn .mon-sub { color: var(--amber); }
+.mon-more { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); display: flex; align-items: center; padding-left: 4px; }
 
 .strip-labels { position: relative; height: 14px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
 .strip-labels span { position: absolute; transform: translateX(-50%); }
@@ -215,20 +227,20 @@ body {
 .task.rec::before { content: "↻ "; color: #c4b5fd; }
 .task.late { background: rgba(255,122,107,.16); color: #ffb3aa; }
 .more { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
-.use { display: grid; gap: 10px; }
-.use-tool { display: grid; gap: 6px; }
+.use { display: grid; gap: 8px; }
+.use-tool { display: grid; gap: 4px; }
 .use-name { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; }
 .use-name .asof { font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
 .use-name .asof.old { color: var(--amber); }
-.use-win { display: grid; grid-template-columns: 34px 1fr 44px; gap: 8px; align-items: center; }
+.use-win { display: grid; grid-template-columns: 30px minmax(0, 1fr) 36px 58px; gap: 8px; align-items: center; }
 .use-win .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
 .use-win .pct { font-family: var(--mono); font-size: 12px; text-align: right; color: var(--ink); }
 .use-bar { height: 6px; border-radius: 3px; background: rgba(233,236,248,.08); overflow: hidden; }
 .use-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--blue), var(--indigo)); }
 .use-bar i.warm { background: linear-gradient(90deg, #f5b14c, #f59e0b); }
 .use-bar i.hot { background: linear-gradient(90deg, #ff9a8d, var(--coral)); }
-.use-reset { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--ink-3); grid-column: 2 / 4; margin-top: -3px; }
-.use-tool + .use-tool { border-top: 1px solid rgba(233,236,248,.05); padding-top: 10px; }
+.use-reset { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--ink-3); text-align: right; white-space: nowrap; }
+.use-tool + .use-tool { border-top: 1px solid rgba(233,236,248,.05); padding-top: 8px; }
 .empty { font-size: 13px; color: var(--ink-3); line-height: 1.5; }
 .empty a { color: var(--ink); }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.2vh, 26px); }
@@ -628,7 +640,7 @@ body {
       bars.appendChild(bar);
     });
 
-    rows.slice(0, innerHeight < 860 ? 3 : innerHeight < 1000 ? 4 : 5).forEach(function (x) {
+    rows.slice(0, 5).forEach(function (x) {
       var row = h("div", "row");
       var av = h("div", "avatar", (x.who || "?").trim().charAt(0).toUpperCase());
       var hu = hue(x.key);
@@ -664,10 +676,10 @@ body {
   function untilText(sec) {
     if (!sec) return "";
     var m = Math.round((sec * 1000 - Date.now()) / 60000);
-    if (m <= 0) return "resets now";
-    if (m < 60) return "resets in " + m + "m";
-    if (m < 48 * 60) return "resets in " + Math.floor(m / 60) + "h " + (m % 60) + "m";
-    return "resets " + new Date(sec * 1000).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    if (m <= 0) return "↻ now";
+    if (m < 60) return "↻ " + m + "m";
+    if (m < 48 * 60) return "↻ " + Math.floor(m / 60) + "h " + pad(m % 60);
+    return "↻ " + new Date(sec * 1000).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
   }
   function useWindow(label, w) {
     var row = h("div", "use-win");
@@ -681,7 +693,7 @@ body {
     bar.appendChild(fill);
     row.appendChild(bar);
     row.appendChild(h("span", "pct", w ? Math.round(pct) + "%" : "–"));
-    if (w && w.resetsAt) row.appendChild(h("span", "use-reset", untilText(w.resetsAt)));
+    var rs = h("span", "use-reset", w && w.resetsAt ? untilText(w.resetsAt) : ""); rs.title = "Resets"; row.appendChild(rs);
     return row;
   }
   function renderUsage() {
@@ -704,7 +716,7 @@ body {
       tool.appendChild(name);
       if (!x) { tool.appendChild(h("div", "note", "No reading yet. " + t[2])); wrap.appendChild(tool); return; }
       tool.appendChild(useWindow("5h", x.fiveHour));
-      tool.appendChild(useWindow("Week", x.week));
+      tool.appendChild(useWindow("Wk", x.week));
       wrap.appendChild(tool);
     });
     box.appendChild(wrap);
@@ -745,7 +757,7 @@ body {
     if (late) { var ln = h("div", "note", late + " late"); ln.style.color = "var(--coral)"; ln.style.marginTop = "-2px"; box.appendChild(ln); }
     if (!items.length) { box.appendChild(h("div", "empty", "Nothing on you. Enjoy it.")); return; }
     var todayKey = dayKey(new Date());
-    items.slice(0, innerHeight < 900 ? 1 : innerHeight < 1300 ? 2 : 3).forEach(function (it) {
+    items.slice(0, 3).forEach(function (it) {
       var row = h("div", "promise");
       var overdue = it.due && it.due.getTime() < Date.now(), today = it.due && dayKey(it.due) === todayKey;
       row.appendChild(h("span", "ring" + (overdue ? " overdue" : today ? " today" : "")));
@@ -761,39 +773,88 @@ body {
     });
   }
 
-  // ---------- systems ----------
+  // ---------- systems: Foundry Monitors ----------
+  // Production services only, grouped by client like the Monitors page in Foundry: anything with
+  // a problem first (with the service named), then the rest with their slowest response time.
+  var MON_COLOUR = { up: "#3dd68c", down: "#ff5b5b", flaky: "#f5b14c", slow: "#f5b14c", stale: "rgba(233,236,248,.35)", unknown: "rgba(233,236,248,.35)" };
+  var MON_WORD = { down: "down", flaky: "unstable", slow: "slow", stale: "not checking", unknown: "no result yet" };
+  function msText(ms) { return ms == null ? "" : ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms"; }
   function renderSystems() {
     var box = document.getElementById("systems");
     clear(box);
     if (!data) return;
     var s = data.monitors;
+    var st = document.getElementById("sysState"); clear(st);
     if (!s.ok) { emptyMsg(box, "Monitors", s.reason); return; }
-    document.getElementById("sysState").textContent = s.up + "/" + s.total;
+    st.appendChild(document.createTextNode(s.up + "/" + s.total + " up "));
+    if (s.link) { var all = h("a", "add-link", "· All ↗"); all.href = s.link; all.target = "_blank"; all.rel = "noopener"; st.appendChild(all); }
+
     var wrap = h("div", "systems");
     var svg = document.createElementNS(NS, "svg");
     svg.setAttribute("viewBox", "0 0 100 100"); svg.setAttribute("class", "constellation");
     var n = s.dots.length || 1;
-    var colours = { up: "#3dd68c", down: "#ff5b5b", flaky: "#f5b14c", slow: "#f5b14c", stale: "rgba(233,236,248,.3)", unknown: "rgba(233,236,248,.3)" };
-    // golden-angle spiral so any number of services packs evenly
-    s.dots.forEach(function (st, i) {
+    s.dots.forEach(function (d, i) {
       var r = 44 * Math.sqrt((i + .5) / n), a = i * 2.39996;
       var cx = 50 + r * Math.cos(a), cy = 50 + r * Math.sin(a);
-      if (st === "down") el("circle", { cx: cx, cy: cy, r: 9, fill: "rgba(255,91,91,.25)" }, svg);
-      el("circle", { cx: cx, cy: cy, r: n > 30 ? 2.6 : 3.6, fill: colours[st] || colours.unknown }, svg);
+      if (d === "down") el("circle", { cx: cx, cy: cy, r: 9, fill: "rgba(255,91,91,.25)" }, svg);
+      el("circle", { cx: cx, cy: cy, r: n > 30 ? 2.6 : 3.6, fill: MON_COLOUR[d] || MON_COLOUR.unknown }, svg);
     });
     var top = h("div", "sys-top");
     top.appendChild(svg);
-    var tx = h("div");
     var head = s.down.length ? s.down.length + " down" : s.trouble.length ? s.trouble.length + " need a look" : "All operational";
-    tx.appendChild(h("div", "sys-head", head));
-    top.appendChild(tx);
+    top.appendChild(h("div", "sys-head", head));
     wrap.appendChild(top);
-    var sub = s.down.length ? s.down.slice(0, 2).map(function (d) { return d.client + " · " + d.name; }).join(", ")
-      : s.trouble.length ? s.trouble.slice(0, 2).map(function (d) { return d.client + " · " + d.name; }).join(", ")
-      : s.total + " production services";
+    var open = (s.incidents || []).filter(function (i) { return !i.acknowledged; }).length;
+    var sub = (s.groups || []).length + " clients · " + s.total + " services" + (open ? " · " + open + " incident" + (open > 1 ? "s" : "") + " not acknowledged" : "");
     wrap.appendChild(h("div", "sys-sub", sub));
     box.appendChild(wrap);
+
+    var groups = s.groups || [];
+    if (!groups.length) return;
+    var max = 24;
+    // Never hide a client with a problem to make room.
+    var bad = groups.filter(function (g) { return g.worst !== "up"; }).length;
+    var shown = groups.slice(0, Math.max(max, bad));
+    var grid = h("div", "mon-grid");
+    shown.forEach(function (g) {
+      var cls = g.worst === "down" ? " bad" : g.worst === "up" ? "" : " warn";
+      var t = h("div", "mon" + cls);
+      var tp = h("div", "mon-top");
+      var dot = h("span", "mon-dot"); dot.style.background = MON_COLOUR[g.worst] || MON_COLOUR.unknown; tp.appendChild(dot);
+      tp.appendChild(h("span", "nm private", g.client));
+      tp.appendChild(h("span", "n", g.up + "/" + g.total));
+      t.appendChild(tp);
+      var p = g.problems[0];
+      var line = p ? p.name + " · " + (MON_WORD[p.state] || p.state) + (p.state === "down" && p.code ? " " + p.code : p.ms != null && p.state === "slow" ? " " + msText(p.ms) : "") + (g.problems.length > 1 ? " +" + (g.problems.length - 1) : "")
+        : (g.ms != null ? "slowest " + msText(g.ms) : "up");
+      var sl = h("div", "mon-sub private", line); sl.title = line; t.appendChild(sl);
+      grid.appendChild(t);
+    });
+    box.appendChild(grid);
+    grid.dataset.total = groups.length;
   }
+  // Make the right-hand column fit the screen by measuring it, not guessing from the window
+  // height. Trims in order of what matters least; a client with a problem is never trimmed.
+  var FIT_STEPS = [["#mail .row", 3], ["#promised .promise", 2], ["#systems .mon:not(.bad):not(.warn)", 0], ["#mail .row", 2], ["#promised .promise", 1]];
+  function fitSide() {
+    var side = document.querySelector(".side");
+    if (!side) return;
+    var over = function () { return side.scrollHeight > side.clientHeight + 1; };
+    FIT_STEPS.forEach(function (step) {
+      var list = side.querySelectorAll(step[0]);
+      for (var i = list.length - 1; i >= step[1] && over(); i--) list[i].remove();
+    });
+    var grid = side.querySelector(".mon-grid");
+    if (grid) {
+      var left = Number(grid.dataset.total || 0) - grid.querySelectorAll(".mon").length;
+      if (left > 0) {
+        var more = h("div", "mon-more", "+" + left + " more, all up");
+        grid.appendChild(more);
+        if (over()) { var ok = grid.querySelectorAll(".mon:not(.bad):not(.warn)"); if (ok.length) { ok[ok.length - 1].remove(); more.textContent = "+" + (left + 1) + " more, all up"; } }
+      }
+    }
+  }
+  window.addEventListener("resize", function () { if (data) renderAll(); });
 
   function renderFoot() {
     var f = document.getElementById("fresh");
@@ -805,6 +866,7 @@ body {
 
   function renderAll() {
     renderClock(); renderDial(); renderNext(); renderMail(); renderUsage(); renderPromised(); renderSystems(); renderWeek(); renderFoot();
+    fitSide();
   }
 
   function load() {

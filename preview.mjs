@@ -58,8 +58,20 @@ const sample = () => ({
     { id: "a3", state: "open", source: "slack", from: "Tahir", what: "Decide how to handle a duplicate Stripe subscription", due: at(0,0,-3).slice(0,10), dueText: null, client: "Fellas Loaded", ref: "C2:2", link: null, quote: "Should I cancel the Stripe subscription and keep the in-app subscription active", askedAt: ago(4000) },
     { id: "a4", state: "open", source: "meeting", from: "Weekly sync", what: "Send Coachman the phase 2 estimate", due: at(0,0,3).slice(0,10), dueText: "by Thursday", client: "Coachman", ref: "m:1", link: null, quote: "Dan to send the phase 2 estimate by Thursday", askedAt: ago(3000) },
   ] },
-  monitors: { ok: true, total: 18, up: 16, down: [], trouble: [{ client: "Fellas Loaded", name: "Analytics", state: "flaky" }, { client: "Wedge", name: "Course API", state: "slow" }],
-    dots: [...Array(16).fill("up"), "flaky", "slow"], incidents: 0 },
+  monitors: { ok: true, total: 30, up: 28, down: [], trouble: [{ client: "Fellas Loaded", name: "Analytics", state: "flaky" }, { client: "Wedge", name: "Course API", state: "slow" }],
+    dots: [...Array(28).fill("up"), "flaky", "slow"], incidents: [{ client: "Fellas Loaded", acknowledged: false }], link: "https://foundry.gitwork.co.uk/app/monitors",
+    groups: [
+      { client: "Fellas Loaded", total: 3, up: 2, worst: "flaky", ms: 340, problems: [{ name: "Analytics", state: "flaky", ms: 900, code: 200 }] },
+      { client: "Wedge", total: 4, up: 3, worst: "slow", ms: 2400, problems: [{ name: "Course API", state: "slow", ms: 2400, code: 200 }] },
+      { client: "Gitwork", total: 3, up: 3, worst: "up", ms: 345, problems: [] },
+      { client: "After Desk", total: 9, up: 9, worst: "up", ms: 410, problems: [] },
+      { client: "Coachman", total: 2, up: 2, worst: "up", ms: 220, problems: [] },
+      { client: "Big Wedge Golf", total: 2, up: 2, worst: "up", ms: 180, problems: [] },
+      { client: "PollenIQ", total: 2, up: 2, worst: "up", ms: 95, problems: [] },
+      { client: "KitFlare", total: 2, up: 2, worst: "up", ms: 260, problems: [] },
+      { client: "YourGroop", total: 2, up: 2, worst: "up", ms: 300, problems: [] },
+      { client: "Valu", total: 1, up: 1, worst: "up", ms: 150, problems: [] },
+    ] },
 });
 const mode = process.env.MODE || "full";
 

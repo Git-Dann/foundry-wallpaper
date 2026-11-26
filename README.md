@@ -152,6 +152,6 @@ Secrets live only in Cloudflare (Settings → Variables and secrets); a deploy k
 | Foundry `/api/backstage/commitments` | open commitments, sorted by due date | quotes, evidence |
 | Slack search | mentions of you and DMs to you, last 3 days: sender, channel, first 180 characters | anything else |
 | Your Mac | asks (who, what, due, their words); Claude and Codex usage (percent used, reset times) | message bodies, prompts, tokens |
-| Foundry `/api/monitors` | production monitors only: state per service; names only where something's wrong | targets, URLs |
+| Foundry `/api/monitors` | production monitors only, grouped by client: services up, slowest response time, and the name and state of any service with a problem | targets, URLs |
 
 Data is cached for 60 seconds in KV, so many open screens cost one read a minute.

@@ -368,23 +368,51 @@ async function readCommitments(env) {
 
 async function readMonitors(env) {
   const body = await getJson(`${foundryBase(env)}/api/monitors`, foundryHeaders(env));
+  const RANK = { down: 0, stale: 1, flaky: 2, slow: 3, unknown: 4, up: 5 };
   const services = [];
+  const groups = [];
   for (const client of body.clients ?? []) {
+    const mine = [];
     for (const m of client.monitors ?? []) {
-      if (m.environment && m.environment !== "production") continue;
+      if (m.environment && m.environment !== "production") continue; // production only, as clients see it
       const state = m.stale ? "stale" : m.status === "DOWN" ? "down" : m.alertKind === "flaky" ? "flaky" : m.status === "DEGRADED" ? "slow" : m.status === "UP" ? "up" : "unknown";
-      services.push({ client: client.name, name: m.name, state });
+      const svc = {
+        client: client.name,
+        name: m.name,
+        state,
+        ms: Number.isFinite(m.latencyMs) ? m.latencyMs : null,
+        code: Number.isFinite(m.statusCode) ? m.statusCode : null,
+        uptime24h: Number.isFinite(m.uptime24h) ? m.uptime24h : null,
+        downSince: m.downSince ?? null,
+      };
+      services.push(svc);
+      mine.push(svc);
     }
+    if (!mine.length) continue;
+    mine.sort((x, y) => RANK[x.state] - RANK[y.state]);
+    const live = mine.filter((x) => x.ms != null && x.state !== "stale");
+    groups.push({
+      client: client.name,
+      slug: client.slug ?? null,
+      total: mine.length,
+      up: mine.filter((x) => x.state === "up").length,
+      worst: mine[0].state,
+      // Slowest answer among this client's services: the number that would worry you.
+      ms: live.length ? Math.max(...live.map((x) => x.ms)) : null,
+      problems: mine.filter((x) => x.state !== "up").map((x) => ({ name: x.name, state: x.state, ms: x.ms, code: x.code, downSince: x.downSince })),
+    });
   }
-  const count = (s) => services.filter((x) => x.state === s).length;
+  groups.sort((x, y) => RANK[x.worst] - RANK[y.worst] || (y.client === "Gitwork") - (x.client === "Gitwork") || x.client.localeCompare(y.client));
+  const count = (st) => services.filter((x) => x.state === st).length;
   return {
     total: services.length,
     up: count("up"),
     down: services.filter((x) => x.state === "down"),
     trouble: services.filter((x) => ["flaky", "slow", "stale"].includes(x.state)),
-    // One dot per service, for the constellation; names only where something's wrong.
-    dots: services.map((s) => s.state),
-    incidents: (body.incidents ?? []).length,
+    dots: services.map((x) => x.state),
+    groups,
+    incidents: (body.incidents ?? []).map((i) => ({ client: i.clientName ?? null, acknowledged: !!i.acknowledgedAt })).slice(0, 10),
+    link: `${foundryBase(env)}/app/monitors`,
   };
 }
 
